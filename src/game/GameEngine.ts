@@ -4,6 +4,27 @@ import { PlayerController, KeyState } from './PlayerController';
 import { Difficulty, DIFFICULTY_CONFIGS, MemoryFragment, INITIAL_MEMORIES, PuzzleState, StorytellerDialogue } from '../types/game';
 import { soundEngine } from '../audio/SoundEngine';
 
+class GameTimer {
+  private lastTime: number = performance.now();
+  private startTime: number = performance.now();
+
+  public start() {
+    this.startTime = performance.now();
+    this.lastTime = performance.now();
+  }
+
+  public getDelta(): number {
+    const now = performance.now();
+    const delta = (now - this.lastTime) / 1000;
+    this.lastTime = now;
+    return delta;
+  }
+
+  public getElapsedTime(): number {
+    return (performance.now() - this.startTime) / 1000;
+  }
+}
+
 export interface GameEngineCallbacks {
   onMemoryCollected: (memory: MemoryFragment, totalCollected: number) => void;
   onRememberStateChange: (active: boolean, remainingDuration: number, maxDuration: number) => void;
@@ -55,7 +76,7 @@ export class GameEngine {
   };
 
   private isRunning: boolean = false;
-  private clock: THREE.Clock = new THREE.Clock();
+  private timer: GameTimer = new GameTimer();
   private isPointerDown: boolean = false;
   private lastMouseX: number = 0;
   private lastMouseY: number = 0;
@@ -104,7 +125,7 @@ export class GameEngine {
   public start() {
     if (this.isRunning) return;
     this.isRunning = true;
-    this.clock.start();
+    this.timer.start();
     soundEngine.startMusic();
     this.animate();
   }
@@ -122,8 +143,8 @@ export class GameEngine {
     if (!this.isRunning) return;
     requestAnimationFrame(this.animate);
 
-    const delta = Math.min(this.clock.getDelta(), 0.1);
-    const elapsedTime = this.clock.getElapsedTime();
+    const delta = Math.min(this.timer.getDelta(), 0.1);
+    const elapsedTime = this.timer.getElapsedTime();
 
     // 1. Update REMEMBER Timer & Cooldown
     const config = DIFFICULTY_CONFIGS[this.difficulty];
