@@ -8,6 +8,8 @@ interface SettingsModalProps {
   onSelectDifficulty: (d: Difficulty) => void;
   isMuted: boolean;
   onToggleMute: () => void;
+  invertLookX?: boolean;
+  onToggleInvertLookX?: () => void;
   onClose: () => void;
   onReturnToMainMenu: () => void;
 }
@@ -17,6 +19,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSelectDifficulty,
   isMuted,
   onToggleMute,
+  invertLookX = false,
+  onToggleInvertLookX,
   onClose,
   onReturnToMainMenu,
 }) => {
@@ -79,8 +83,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </p>
         </div>
 
-        {/* Audio Toggle */}
-        <div className="space-y-2 border-t border-amber-900/40 pt-4">
+        {/* Audio & Camera Controls */}
+        <div className="space-y-3 border-t border-amber-900/40 pt-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {isMuted ? <VolumeX className="w-4 h-4 text-amber-500" /> : <Volume2 className="w-4 h-4 text-amber-400" />}
@@ -103,6 +107,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {isMuted ? 'MUTED' : 'ENABLED'}
             </button>
           </div>
+
+          {onToggleInvertLookX && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-cinzel text-amber-200 font-semibold">
+                Camera Orbit (Horizontal Look)
+              </span>
+
+              <button
+                onClick={() => {
+                  soundEngine.playButtonClick();
+                  onToggleInvertLookX();
+                }}
+                className={`px-3 py-1 rounded-lg border text-xs font-mono font-bold transition-colors cursor-pointer ${
+                  invertLookX
+                    ? 'bg-amber-800/60 border-amber-500 text-amber-200'
+                    : 'bg-[#2a130a]/60 border-amber-900/50 text-amber-300/80 hover:bg-[#34170d]'
+                }`}
+              >
+                {invertLookX ? 'INVERTED' : 'STANDARD'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Control Reference */}

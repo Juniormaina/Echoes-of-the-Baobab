@@ -27,6 +27,7 @@ export default function App() {
   const [difficulty, setDifficulty] = useState<Difficulty>('safari');
   const [memories, setMemories] = useState<MemoryFragment[]>(INITIAL_MEMORIES);
   const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [invertLookX, setInvertLookX] = useState<boolean>(false);
 
   // REMEMBER mechanic state
   const [isRememberActive, setIsRememberActive] = useState<boolean>(false);
@@ -131,6 +132,12 @@ export default function App() {
     }
   };
 
+  const handleTriggerJump = () => {
+    if (engineRef.current) {
+      engineRef.current.jump();
+    }
+  };
+
   const handleRespawn = () => {
     if (engineRef.current) {
       engineRef.current.respawnAtCheckpoint();
@@ -201,6 +208,7 @@ export default function App() {
           nearestInteractive={nearestInteractive}
           onTriggerRemember={handleTriggerRemember}
           onTriggerInteract={handleTriggerInteract}
+          onTriggerJump={handleTriggerJump}
           onOpenMemories={() => setGameView('memories')}
           onOpenSettings={() => setGameView('settings')}
           isMuted={isMuted}
@@ -228,6 +236,14 @@ export default function App() {
           onSelectDifficulty={handleSelectDifficulty}
           isMuted={isMuted}
           onToggleMute={handleToggleMute}
+          invertLookX={invertLookX}
+          onToggleInvertLookX={() => {
+            const next = !invertLookX;
+            setInvertLookX(next);
+            if (engineRef.current) {
+              engineRef.current.invertLookX = next;
+            }
+          }}
           onClose={() => setGameView(engineRef.current && engineRef.current['isRunning'] ? 'playing' : 'start')}
           onReturnToMainMenu={handleReturnToMainMenu}
         />

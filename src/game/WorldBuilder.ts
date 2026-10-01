@@ -11,6 +11,43 @@ export interface InteractiveObject {
   hintMesh?: THREE.Object3D;
 }
 
+/**
+ * Exact mathematical elevation of the savanna terrain at world coordinates (x, z).
+ * Used consistently across rendering, object placement, physics, and ground alignment.
+ */
+export function getTerrainHeightAt(x: number, z: number): number {
+  let y = Math.sin(x * 0.04) * Math.cos(z * 0.04) * 1.5;
+
+  // Chasm for the Forgotten Bridge around z = -12 to -24, between x = -25 and 25
+  if (z > -26 && z < -10 && x > -25 && x < 25) {
+    const chasmFactor = Math.cos(((z + 18) / 8) * Math.PI * 0.5);
+    if (chasmFactor > 0) {
+      y -= Math.pow(chasmFactor, 1.5) * 7.5;
+    }
+  }
+
+  // Riverbed trench from x = 20 to 40, running z = -35 to 45
+  const riverDist = Math.abs(x - 30);
+  if (riverDist < 10 && z > -35 && z < 45) {
+    const factor = (1 - riverDist / 10);
+    y -= factor * 3.5;
+  }
+
+  // Baobab sacred plateau at center-back (x = 0, z = 45)
+  const distToBaobab = Math.hypot(x - 0, z - 45);
+  if (distToBaobab < 25) {
+    y += (1 - distToBaobab / 25) * 3.0;
+  }
+
+  // Shrine elevated mound at x = -40, z = 20
+  const distToShrine = Math.hypot(x + 40, z - 20);
+  if (distToShrine < 20) {
+    y += (1 - distToShrine / 20) * 2.5;
+  }
+
+  return y;
+}
+
 export class WorldBuilder {
   public scene: THREE.Scene;
   public interactives: InteractiveObject[] = [];
@@ -32,7 +69,14 @@ export class WorldBuilder {
   public rememberParticlesMesh!: THREE.Points;
 
   // Collision obstacles (cylinders and boxes)
-  public colliders: { x: number; z: number; radius: number; isBridge?: boolean }[] = [];
+  public colliders: {
+    x: number;
+    z: number;
+    radius: number;
+    isBridge?: boolean;
+    height?: number;
+    climbable?: boolean;
+  }[] = [];
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -128,37 +172,7 @@ export class WorldBuilder {
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
-
-      let y = Math.sin(x * 0.04) * Math.cos(z * 0.04) * 1.5;
-
-      // Chasm for the Forgotten Bridge around z = -12 to -22, between x = -25 and 15
-      if (z > -26 && z < -10 && x > -25 && x < 25) {
-        const chasmFactor = Math.cos(((z + 18) / 8) * Math.PI * 0.5);
-        if (chasmFactor > 0) {
-          y -= Math.pow(chasmFactor, 1.5) * 7.5;
-        }
-      }
-
-      // Riverbed trench from x = 15 to 45, running z = -40 to 40
-      const riverDist = Math.abs(x - 30);
-      if (riverDist < 10 && z > -35 && z < 45) {
-        const factor = (1 - riverDist / 10);
-        y -= factor * 3.5;
-      }
-
-      // Baobab sacred plateau at center-back (x = 0, z = 45)
-      const distToBaobab = Math.hypot(x - 0, z - 45);
-      if (distToBaobab < 25) {
-        y += (1 - distToBaobab / 25) * 3.0;
-      }
-
-      // Shrine elevated mound at x = -40, z = 20
-      const distToShrine = Math.hypot(x + 40, z - 20);
-      if (distToShrine < 20) {
-        y += (1 - distToShrine / 20) * 2.5;
-      }
-
-      pos.setY(i, y);
+      pos.setY(i, getTerrainHeightAt(x, z));
     }
     groundGeo.computeVertexNormals();
 
@@ -199,7 +213,8 @@ export class WorldBuilder {
 
   private buildTheGreatBaobab() {
     this.baobabMesh = new THREE.Group();
-    this.baobabMesh.position.set(0, 3, 50);
+    const groundY = getTerrainHeightAt(0, 50);
+    this.baobabMesh.position.set(0, groundY, 50);
 
     // Massive thick, bulbous trunk
     const trunkMat = new THREE.MeshStandardMaterial({
@@ -208,10 +223,10 @@ export class WorldBuilder {
       flatShading: true,
     });
 
-    // Lower bulbous base
-    const baseGeo = new THREE.CylinderGeometry(8, 12, 14, 16);
+    // Lower bulbous base - reaches down 1.5m into the earth to eliminate any gap
+    const baseGeo = new THREE.CylinderGeometry(8, 13, 17, 16);
     const baseMesh = new THREE.Mesh(baseGeo, trunkMat);
-    baseMesh.position.y = 7;
+    baseMesh.position.y = 7.5;
     baseMesh.castShadow = true;
     baseMesh.receiveShadow = true;
     this.baobabMesh.add(baseMesh);
@@ -219,7 +234,7 @@ export class WorldBuilder {
     // Mid trunk
     const midGeo = new THREE.CylinderGeometry(6.5, 8, 12, 14);
     const midMesh = new THREE.Mesh(midGeo, trunkMat);
-    midMesh.position.y = 19;
+    midMesh.position.y = 20;
     midMesh.castShadow = true;
     this.baobabMesh.add(midMesh);
 
@@ -298,21 +313,24 @@ export class WorldBuilder {
     this.restoredLeaves.instanceMatrix.needsUpdate = true;
     this.baobabMesh.add(this.restoredLeaves);
 
-    // Sacred Heart Altar at base
-    const altarGeo = new THREE.CylinderGeometry(3, 3.8, 1.2, 8);
+    // Sacred Heart Altar at base - directly grounded
+    const altarGroundY = getTerrainHeightAt(0, 39);
+    const altarGeo = new THREE.CylinderGeometry(3, 3.8, 2.2, 8);
     const altarMat = new THREE.MeshStandardMaterial({
       color: 0x3d291e,
       roughness: 0.8,
     });
     const altar = new THREE.Mesh(altarGeo, altarMat);
-    altar.position.set(0, 0.6, -11);
-    this.baobabMesh.add(altar);
+    altar.position.set(0, altarGroundY + 0.9, 39);
+    altar.receiveShadow = true;
+    altar.castShadow = true;
+    this.scene.add(altar);
 
     // Interactive Baobab Heart Core
     this.interactives.push({
       id: 'baobab_core',
       type: 'baobab_core',
-      position: new THREE.Vector3(0, 3.6, 39),
+      position: new THREE.Vector3(0, altarGroundY + 1.8, 39),
       radius: 4.5,
       label: 'Awaken the Great Baobab',
       mesh: altar,
@@ -320,8 +338,9 @@ export class WorldBuilder {
 
     this.scene.add(this.baobabMesh);
 
-    // Collider for tree base
-    this.colliders.push({ x: 0, z: 50, radius: 11 });
+    // Solid Colliders for tree base and altar
+    this.colliders.push({ x: 0, z: 50, radius: 11.5, height: 26.0 });
+    this.colliders.push({ x: 0, z: 39, radius: 3.6, height: 2.2 });
   }
 
   private buildAcaciaTreesAndRocks() {
@@ -341,28 +360,30 @@ export class WorldBuilder {
 
     acaciaPositions.forEach(p => {
       const tree = new THREE.Group();
-      tree.position.set(p.x, 0, p.z);
+      const groundY = getTerrainHeightAt(p.x, p.z);
+      tree.position.set(p.x, groundY, p.z);
       tree.scale.set(p.scale, p.scale, p.scale);
 
-      // Angled slender trunk
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.7, 7, 6), woodMat);
-      trunk.position.set(0, 3.5, 0);
+      // Angled slender trunk with bottom extending into the earth
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.75, 8.5, 6), woodMat);
+      trunk.position.set(0, 3.8, 0); // bottom reaches groundY - 0.45, deeply rooted
       trunk.rotation.z = (Math.random() - 0.5) * 0.25;
       trunk.castShadow = true;
+      trunk.receiveShadow = true;
       tree.add(trunk);
 
       // Flattened disc canopy typical of African savanna
       const disc1 = new THREE.Mesh(new THREE.CylinderGeometry(4.5, 5.2, 1.2, 8), canopyMat);
-      disc1.position.set(0, 7.5, 0);
+      disc1.position.set(0, 7.8, 0);
       disc1.castShadow = true;
       tree.add(disc1);
 
       const disc2 = new THREE.Mesh(new THREE.CylinderGeometry(3.0, 3.8, 0.9, 7), canopyMat);
-      disc2.position.set(1.5, 8.2, 0.8);
+      disc2.position.set(1.5, 8.5, 0.8);
       tree.add(disc2);
 
       this.scene.add(tree);
-      this.colliders.push({ x: p.x, z: p.z, radius: 1.2 });
+      this.colliders.push({ x: p.x, z: p.z, radius: 1.1, height: 8.0 });
     });
 
     // Red granite savanna boulders / kopje rocks
@@ -382,14 +403,21 @@ export class WorldBuilder {
     ];
 
     rockSpots.forEach(r => {
+      const groundY = getTerrainHeightAt(r.x, r.z);
       const rockGeo = new THREE.DodecahedronGeometry(r.scale, 0);
       const rock = new THREE.Mesh(rockGeo, rockMat);
-      rock.position.set(r.x, r.scale * 0.5, r.z);
+      // Positioned so the lower ~55% of the rock is embedded into the red earth
+      rock.position.set(r.x, groundY + r.scale * 0.4, r.z);
       rock.rotation.set(Math.random(), Math.random(), 0);
       rock.castShadow = true;
       rock.receiveShadow = true;
       this.scene.add(rock);
-      this.colliders.push({ x: r.x, z: r.z, radius: r.scale * 0.9 });
+      this.colliders.push({
+        x: r.x,
+        z: r.z,
+        radius: r.scale * 0.95,
+        height: r.scale * 1.2,
+      });
     });
   }
 
@@ -515,37 +543,44 @@ export class WorldBuilder {
     this.scene.add(this.physicalBridge);
 
     // Interactive Bridge Rune Stone
+    const runeGroundY = getTerrainHeightAt(-2.8, -10.5);
     this.interactives.push({
       id: 'bridge_rune',
       type: 'bridge_rune',
-      position: new THREE.Vector3(-2.8, 1.1, -10.5),
+      position: new THREE.Vector3(-2.8, runeGroundY + 1.2, -10.5),
       radius: 3.5,
       label: 'Channel Echo to Restore Bridge',
       mesh: runeStone,
     });
+    this.colliders.push({ x: -2.8, z: -10.5, radius: 1.2, height: 2.8 });
+    this.colliders.push({ x: 0, z: -11, radius: 2.2, height: 4.5 });
+    this.colliders.push({ x: 0, z: -25, radius: 2.2, height: 4.5 });
   }
 
   private buildForgottenRiverPuzzle() {
     // Dry riverbed is along x = 30, from z = -30 to 30.
     // The ancient watergate sluice is at x = 30, z = -25.
+    const riverbedY = getTerrainHeightAt(30, -25);
     const gateGroup = new THREE.Group();
-    gateGroup.position.set(30, 1.5, -25);
+    gateGroup.position.set(30, riverbedY, -25);
 
-    // Stone archway sluice
+    // Stone archway sluice with pillars extending into bedrock
     const gateMat = new THREE.MeshStandardMaterial({ color: 0x4a3b32, roughness: 0.85, flatShading: true });
-    const archTop = new THREE.Mesh(new THREE.BoxGeometry(10, 2.5, 3), gateMat);
-    archTop.position.set(0, 5, 0);
+    const archTop = new THREE.Mesh(new THREE.BoxGeometry(10.5, 2.5, 3.5), gateMat);
+    archTop.position.set(0, 7.5, 0);
     archTop.castShadow = true;
     gateGroup.add(archTop);
 
-    const archLeft = new THREE.Mesh(new THREE.BoxGeometry(2.5, 7, 3), gateMat);
-    archLeft.position.set(-4, 2.5, 0);
+    const archLeft = new THREE.Mesh(new THREE.BoxGeometry(2.8, 10, 3.5), gateMat);
+    archLeft.position.set(-4, 4.0, 0);
     archLeft.castShadow = true;
+    archLeft.receiveShadow = true;
     gateGroup.add(archLeft);
 
-    const archRight = new THREE.Mesh(new THREE.BoxGeometry(2.5, 7, 3), gateMat);
-    archRight.position.set(4, 2.5, 0);
+    const archRight = new THREE.Mesh(new THREE.BoxGeometry(2.8, 10, 3.5), gateMat);
+    archRight.position.set(4, 4.0, 0);
     archRight.castShadow = true;
+    archRight.receiveShadow = true;
     gateGroup.add(archRight);
 
     // Three stone alignment wheels (Sun, Wave, Sprout)
@@ -554,7 +589,7 @@ export class WorldBuilder {
 
     [-2.6, 0, 2.6].forEach((xOffset, idx) => {
       const wheelGroup = new THREE.Group();
-      wheelGroup.position.set(xOffset, 2.2, 1.6);
+      wheelGroup.position.set(xOffset, 2.8, 1.6);
 
       const wheelGeo = new THREE.CylinderGeometry(0.85, 0.85, 0.4, 16);
       wheelGeo.rotateX(Math.PI / 2);
@@ -577,7 +612,7 @@ export class WorldBuilder {
       this.interactives.push({
         id: `river_wheel_${idx}`,
         type: 'river_wheel',
-        position: new THREE.Vector3(30 + xOffset, 1.8, -23.4),
+        position: new THREE.Vector3(30 + xOffset, riverbedY + 2.8, -23.4),
         radius: 3.0,
         label: `Rotate Water Wheel ${idx + 1} (${wheelIcons[idx]})`,
         data: { wheelIndex: idx },
@@ -586,6 +621,10 @@ export class WorldBuilder {
     });
 
     this.scene.add(gateGroup);
+    // Colliders for the solid stone watergate
+    this.colliders.push({ x: 26, z: -25, radius: 1.8, height: 9.0 });
+    this.colliders.push({ x: 34, z: -25, radius: 1.8, height: 9.0 });
+    this.colliders.push({ x: 30, z: -26.5, radius: 4.5, height: 9.0 });
 
     // Animated River Water Mesh (hidden until watergate opens!)
     const waterGeo = new THREE.PlaneGeometry(12, 60, 24, 32);
@@ -600,30 +639,45 @@ export class WorldBuilder {
       opacity: 0.88,
     });
     this.riverWater = new THREE.Mesh(waterGeo, waterMat);
-    this.riverWater.position.set(30, -1.8, 5);
+    this.riverWater.position.set(30, riverbedY + 1.2, 5);
     this.riverWater.visible = false; // Initially dry!
     this.scene.add(this.riverWater);
 
-    // Stepping stones that rise with the water to allow crossing
+    // Stepping stones that rise from riverbed bedrock to allow crossing
     [-4, 0, 4].forEach(zOff => {
-      const stoneGeo = new THREE.CylinderGeometry(1.4, 1.6, 1.5, 7);
+      const stoneX = 30;
+      const stoneZ = 5 + zOff;
+      const bedY = getTerrainHeightAt(stoneX, stoneZ);
+      const stoneGeo = new THREE.CylinderGeometry(1.4, 1.6, 3.5, 8);
       const stone = new THREE.Mesh(stoneGeo, gateMat);
-      stone.position.set(30, -0.6, 5 + zOff);
+      stone.position.set(stoneX, bedY + 1.35, stoneZ);
       stone.receiveShadow = true;
+      stone.castShadow = true;
       this.scene.add(stone);
+
+      this.colliders.push({
+        x: stoneX,
+        z: stoneZ,
+        radius: 1.5,
+        height: 1.6,
+        climbable: true,
+      });
     });
   }
 
   private buildMemoryShrinePuzzle() {
     // Located at the elevated western hill: x = -40, z = 20
+    const shrineGroundY = getTerrainHeightAt(-40, 20);
     const shrineGroup = new THREE.Group();
-    shrineGroup.position.set(-40, 2.5, 20);
+    shrineGroup.position.set(-40, shrineGroundY, 20);
 
-    // Ancient circular stone base
-    const baseGeo = new THREE.CylinderGeometry(11, 12, 0.8, 16);
+    // Ancient circular stone base - deep solid foundation embedded in hill
+    const baseGeo = new THREE.CylinderGeometry(11, 13, 2.5, 16);
     const baseMat = new THREE.MeshStandardMaterial({ color: 0x3d291e, roughness: 0.9, flatShading: true });
     const base = new THREE.Mesh(baseGeo, baseMat);
+    base.position.y = 0.8;
     base.receiveShadow = true;
+    base.castShadow = true;
     shrineGroup.add(base);
 
     // 3 Totem Monoliths:
@@ -631,9 +685,9 @@ export class WorldBuilder {
     // Totem 1: Elephant / Baobab of Wisdom (0, 0, 6)
     // Totem 2: Sun Leopard of Fire (6, 0, -3)
     const totemConfigs = [
-      { name: 'Totem of the Hornbill (Sky)', color: 0x38bdf8, pos: new THREE.Vector3(-6, 2.5, -3) },
-      { name: 'Totem of the Elephant (Memory)', color: 0x10b981, pos: new THREE.Vector3(0, 2.5, 6) },
-      { name: 'Totem of the Sun Leopard (Fire)', color: 0xf59e0b, pos: new THREE.Vector3(6, 2.5, -3) },
+      { name: 'Totem of the Hornbill (Sky)', color: 0x38bdf8, pos: new THREE.Vector3(-6, 2.05, -3) },
+      { name: 'Totem of the Elephant (Memory)', color: 0x10b981, pos: new THREE.Vector3(0, 2.05, 6) },
+      { name: 'Totem of the Sun Leopard (Fire)', color: 0xf59e0b, pos: new THREE.Vector3(6, 2.05, -3) },
     ];
 
     totemConfigs.forEach((cfg, idx) => {
@@ -649,6 +703,7 @@ export class WorldBuilder {
       });
       const pillar = new THREE.Mesh(pillarGeo, pillarMat);
       pillar.castShadow = true;
+      pillar.receiveShadow = true;
       totem.add(pillar);
 
       // Glowing ancestral symbol on face
@@ -670,30 +725,41 @@ export class WorldBuilder {
       this.interactives.push({
         id: `shrine_totem_${idx}`,
         type: 'shrine_totem',
-        position: new THREE.Vector3(-40 + cfg.pos.x, 3.5, 20 + cfg.pos.z),
+        position: new THREE.Vector3(-40 + cfg.pos.x, shrineGroundY + 3.5, 20 + cfg.pos.z),
         radius: 3.2,
         label: `Attune with ${cfg.name}`,
         data: { totemIndex: idx },
         mesh: totem,
       });
 
-      this.colliders.push({ x: -40 + cfg.pos.x, z: 20 + cfg.pos.z, radius: 1.2 });
+      this.colliders.push({ x: -40 + cfg.pos.x, z: 20 + cfg.pos.z, radius: 1.3, height: 5.5 });
     });
 
     // Central altar flame bowl
     const bowlGeo = new THREE.CylinderGeometry(1.8, 1.2, 1.5, 8);
     const bowl = new THREE.Mesh(bowlGeo, baseMat);
-    bowl.position.set(0, 1.2, 0);
+    bowl.position.set(0, 2.0, 0);
+    bowl.castShadow = true;
+    bowl.receiveShadow = true;
     shrineGroup.add(bowl);
+    this.colliders.push({ x: -40, z: 20, radius: 1.8, height: 2.2 });
 
     this.scene.add(shrineGroup);
   }
 
   private buildStorytellerNPC() {
-    // The Griot / Storyteller sits peacefully near an acacia tree (x = -8, z = 8)
+    // The Griot / Storyteller sits peacefully on a woven mat on the red earth
+    const groundY = getTerrainHeightAt(-8, 8);
     this.storytellerGroup = new THREE.Group();
-    this.storytellerGroup.position.set(-8, 0.2, 8);
+    this.storytellerGroup.position.set(-8, groundY, 8);
     this.storytellerGroup.rotation.y = 0.5;
+
+    // Traditional woven circular grass mat directly on the ground
+    const matGeo = new THREE.CylinderGeometry(1.6, 1.8, 0.15, 16);
+    const mat = new THREE.Mesh(matGeo, new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.9 }));
+    mat.position.y = 0.07;
+    mat.receiveShadow = true;
+    this.storytellerGroup.add(mat);
 
     // Body in patterned draped robe
     const bodyGeo = new THREE.ConeGeometry(0.7, 1.5, 8);
@@ -702,20 +768,22 @@ export class WorldBuilder {
       roughness: 0.85,
     });
     const body = new THREE.Mesh(bodyGeo, robeMat);
-    body.position.y = 0.75;
+    body.position.y = 0.82;
+    body.castShadow = true;
     this.storytellerGroup.add(body);
 
     // Head with headwrap / kofia
     const headGeo = new THREE.SphereGeometry(0.35, 12, 12);
     const headMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.6 });
     const head = new THREE.Mesh(headGeo, headMat);
-    head.position.y = 1.6;
+    head.position.y = 1.67;
+    head.castShadow = true;
     this.storytellerGroup.add(head);
 
     const wrapGeo = new THREE.TorusGeometry(0.36, 0.1, 8, 16);
     const wrapMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b });
     const wrap = new THREE.Mesh(wrapGeo, wrapMat);
-    wrap.position.y = 1.7;
+    wrap.position.y = 1.77;
     wrap.rotation.x = Math.PI / 2;
     this.storytellerGroup.add(wrap);
 
@@ -723,12 +791,13 @@ export class WorldBuilder {
     const koraGeo = new THREE.SphereGeometry(0.45, 10, 10);
     const koraGourdMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.5 });
     const kora = new THREE.Mesh(koraGeo, koraGourdMat);
-    kora.position.set(0.65, 0.45, 0.2);
+    kora.position.set(0.65, 0.5, 0.2);
+    kora.castShadow = true;
     this.storytellerGroup.add(kora);
 
     const koraNeckGeo = new THREE.CylinderGeometry(0.04, 0.04, 1.4, 6);
     const koraNeck = new THREE.Mesh(koraNeckGeo, new THREE.MeshStandardMaterial({ color: 0x29150b }));
-    koraNeck.position.set(0.65, 0.9, 0.2);
+    koraNeck.position.set(0.65, 0.95, 0.2);
     koraNeck.rotation.z = -0.3;
     this.storytellerGroup.add(koraNeck);
 
@@ -737,25 +806,22 @@ export class WorldBuilder {
     this.interactives.push({
       id: 'storyteller_npc',
       type: 'storyteller',
-      position: new THREE.Vector3(-8, 1.2, 8),
+      position: new THREE.Vector3(-8, groundY + 1.2, 8),
       radius: 3.5,
       label: 'Speak with the Griot of the Baobab',
       mesh: this.storytellerGroup,
     });
+
+    this.colliders.push({ x: -8, z: 8, radius: 1.4, height: 2.2 });
   }
 
   private buildMemoryFragments() {
-    // 4 major Memory Fragments placed across the journey:
-    // Fragment 1: Memory of Song (Across the Forgotten Bridge, z = -32, x = 0)
-    // Fragment 2: Memory of Rain (Across the Forgotten River, z = 10, x = 40)
-    // Fragment 3: Memory of Community (At the Memory Shrine, z = 20, x = -40)
-    // Fragment 4: Memory of the Baobab (At the Baobab Altar, z = 39, x = 0)
-
+    // 4 major Memory Fragments placed across the journey, elevated precisely above their grounded landmarks:
     const fragments = [
-      { id: 'memory-song', pos: new THREE.Vector3(0, 2.0, -32), color: 0xf59e0b },
-      { id: 'memory-rain', pos: new THREE.Vector3(40, 1.6, 10), color: 0x06b6d4 },
-      { id: 'memory-community', pos: new THREE.Vector3(-40, 4.2, 20), color: 0xec4899 },
-      { id: 'memory-roots', pos: new THREE.Vector3(0, 4.2, 39), color: 0x10b981 },
+      { id: 'memory-song', pos: new THREE.Vector3(0, getTerrainHeightAt(0, -32) + 1.8, -32), color: 0xf59e0b },
+      { id: 'memory-rain', pos: new THREE.Vector3(40, getTerrainHeightAt(40, 10) + 1.8, 10), color: 0x06b6d4 },
+      { id: 'memory-community', pos: new THREE.Vector3(-40, getTerrainHeightAt(-40, 20) + 3.2, 20), color: 0xec4899 },
+      { id: 'memory-roots', pos: new THREE.Vector3(0, getTerrainHeightAt(0, 39) + 2.4, 39), color: 0x10b981 },
     ];
 
     fragments.forEach(f => {
@@ -823,7 +889,8 @@ export class WorldBuilder {
 
     echoPositions.forEach(p => {
       const figure = new THREE.Group();
-      figure.position.set(p.x, 1.2, p.z);
+      const groundY = getTerrainHeightAt(p.x, p.z);
+      figure.position.set(p.x, groundY + 0.8, p.z);
 
       const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.4, 1.6, 6), echoMat);
       figure.add(body);

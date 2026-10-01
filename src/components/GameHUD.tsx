@@ -13,6 +13,7 @@ interface GameHUDProps {
   nearestInteractive: InteractiveObject | null;
   onTriggerRemember: () => void;
   onTriggerInteract: () => void;
+  onTriggerJump: () => void;
   onOpenMemories: () => void;
   onOpenSettings: () => void;
   isMuted: boolean;
@@ -31,6 +32,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   nearestInteractive,
   onTriggerRemember,
   onTriggerInteract,
+  onTriggerJump,
   onOpenMemories,
   onOpenSettings,
   isMuted,
@@ -227,14 +229,24 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         {/* Center: Desktop controls guide tooltip */}
         <div className="hidden md:flex items-center gap-4 text-[11px] text-amber-300/70 bg-[#1e0c05]/60 px-4 py-2 rounded-xl border border-amber-900/40 backdrop-blur-xs">
           <span><kbd className="px-1.5 py-0.5 rounded bg-amber-950 border border-amber-800 text-amber-200 font-mono text-[10px]">WASD</kbd> Move</span>
+          <span><kbd className="px-1.5 py-0.5 rounded bg-amber-950 border border-amber-800 text-amber-200 font-mono text-[10px]">Space</kbd> Jump / Climb</span>
           <span><kbd className="px-1.5 py-0.5 rounded bg-amber-950 border border-amber-800 text-amber-200 font-mono text-[10px]">Mouse</kbd> Orbit Look</span>
           <span><kbd className="px-1.5 py-0.5 rounded bg-amber-950 border border-amber-800 text-amber-200 font-mono text-[10px]">Shift</kbd> Sprint</span>
           <span><kbd className="px-1.5 py-0.5 rounded bg-amber-950 border border-amber-800 text-amber-200 font-mono text-[10px]">E</kbd> Interact</span>
           <span><kbd className="px-1.5 py-0.5 rounded bg-amber-950 border border-amber-800 text-amber-200 font-mono text-[10px]">R</kbd> Remember</span>
         </div>
 
-        {/* Right: Main Action Buttons (REMEMBER, Interact, Sprint) */}
-        <div className="pointer-events-auto flex items-center gap-3">
+        {/* Right: Main Action Buttons (REMEMBER, Interact, Jump, Sprint) */}
+        <div className="pointer-events-auto flex items-center gap-2.5 sm:gap-3">
+          {/* Jump / Climb Action Button */}
+          <button
+            onClick={onTriggerJump}
+            className="px-3.5 py-2.5 rounded-xl border text-xs font-semibold tracking-wider font-cinzel transition-all cursor-pointer bg-[#2b1208]/80 text-amber-200/90 border-amber-700/60 hover:bg-[#38180b] active:scale-95 shadow-md flex items-center gap-1.5"
+            title="Jump or climb onto elevated objects (Space)"
+          >
+            <span>JUMP</span>
+          </button>
+
           {/* Run Toggle Button */}
           <button
             onClick={() => {

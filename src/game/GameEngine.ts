@@ -61,6 +61,7 @@ export class GameEngine {
   public isRememberActive: boolean = false;
   public rememberTimer: number = 0;
   public rememberCooldownTimer: number = 0;
+  public invertLookX: boolean = false;
 
   // Checkpoints
   public currentCheckpoint: THREE.Vector3 = new THREE.Vector3(0, 0, 2);
@@ -427,7 +428,8 @@ export class GameEngine {
       this.lastMouseX = e.clientX;
       this.lastMouseY = e.clientY;
 
-      this.player.rotateCamera(-dx * 0.005, dy * 0.005);
+      const factorX = this.invertLookX ? 0.005 : -0.005;
+      this.player.rotateCamera(dx * factorX, dy * 0.005);
     });
 
     // Touch controls for camera swipe
@@ -446,7 +448,8 @@ export class GameEngine {
         const dy = e.touches[0].clientY - touchStartY;
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
-        this.player.rotateCamera(-dx * 0.006, dy * 0.006);
+        const factorX = this.invertLookX ? 0.006 : -0.006;
+        this.player.rotateCamera(dx * factorX, dy * 0.006);
       }
     }, { passive: true });
 
@@ -479,6 +482,9 @@ export class GameEngine {
         case 'ShiftRight':
           this.keys.run = true;
           break;
+        case 'Space':
+          this.keys.jump = true;
+          break;
         case 'KeyE':
           this.interact();
           break;
@@ -510,8 +516,15 @@ export class GameEngine {
         case 'ShiftRight':
           this.keys.run = false;
           break;
+        case 'Space':
+          this.keys.jump = false;
+          break;
       }
     });
+  }
+
+  public jump() {
+    this.player.jump();
   }
 
   private onResize() {

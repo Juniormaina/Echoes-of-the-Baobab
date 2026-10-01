@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { InteractiveObject } from './WorldBuilder';
+import { InteractiveObject, getTerrainHeightAt } from './WorldBuilder';
 import { soundEngine } from '../audio/SoundEngine';
 
 export interface KeyState {
@@ -37,6 +37,9 @@ export class PlayerController {
   // Movement physics
   public walkSpeed: number = 6.5;
   public runSpeed: number = 11.5;
+  public verticalVelocity: number = 0;
+  public gravity: number = -24.0;
+  public jumpStrength: number = 9.5;
   public isGrounded: boolean = true;
   private animTimer: number = 0;
   private footstepTimer: number = 0;
@@ -168,14 +171,27 @@ export class PlayerController {
     this.characterMesh.add(this.staffMesh);
   }
 
+  public jump() {
+    if (this.isGrounded) {
+      this.verticalVelocity = this.jumpStrength;
+      this.isGrounded = false;
+      soundEngine.playJump();
+    }
+  }
+
   public update(
     delta: number,
     keys: KeyState,
     interactives: InteractiveObject[],
-    colliders: { x: number; z: number; radius: number; isBridge?: boolean }[],
+    colliders: { x: number; z: number; radius: number; isBridge?: boolean; height?: number; climbable?: boolean }[],
     bridgeSolved: boolean,
     onFallChasm: () => void
   ) {
+    // 0. Jump trigger
+    if (keys.jump && this.isGrounded) {
+      this.jump();
+    }
+
     // 1. Calculate movement relative to camera yaw
     const forward = (keys.forward ? 1 : 0) - (keys.backward ? 1 : 0);
     const side = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
@@ -184,8 +200,8 @@ export class PlayerController {
     const currentSpeed = keys.run ? this.runSpeed : this.walkSpeed;
 
     if (isMoving) {
-      // Calculate move direction relative to camera angle
-      const moveAngle = Math.atan2(side, forward);
+      // Calculate move direction relative to camera angle (-side correctly aligns screen-space left/right)
+      const moveAngle = Math.atan2(-side, forward);
       const targetAngle = this.cameraYaw + moveAngle;
 
       const moveX = Math.sin(targetAngle);
@@ -209,10 +225,12 @@ export class PlayerController {
       this.staffMesh.rotation.x = -legSwing * 0.3;
 
       // Footstep sound triggers
-      this.footstepTimer += delta;
-      if (this.footstepTimer > (keys.run ? 0.28 : 0.42)) {
-        soundEngine.playFootstep();
-        this.footstepTimer = 0;
+      if (this.isGrounded) {
+        this.footstepTimer += delta;
+        if (this.footstepTimer > (keys.run ? 0.28 : 0.42)) {
+          soundEngine.playFootstep();
+          this.footstepTimer = 0;
+        }
       }
     } else {
       // Decelerate smoothly
@@ -225,6 +243,15 @@ export class PlayerController {
       this.leftArm.rotation.x = Math.sin(Date.now() * 0.003) * 0.06;
       this.rightArm.rotation.x = -Math.sin(Date.now() * 0.003) * 0.04;
       this.staffMesh.rotation.x = 0;
+    }
+
+    // Dynamic in-air jump / climb pose
+    if (!this.isGrounded) {
+      this.leftLeg.rotation.x = -0.55;
+      this.rightLeg.rotation.x = -0.35;
+      this.leftArm.rotation.x = -0.7;
+      this.rightArm.rotation.x = 0.55;
+      this.staffMesh.rotation.x = -0.4;
     }
 
     // Propose new position
@@ -248,35 +275,110 @@ export class PlayerController {
     const clampedX = Math.max(-100, Math.min(100, nextX));
     const clampedZ = Math.max(-90, Math.min(85, nextZ));
 
-    // Simple obstacle collision check
-    let collision = false;
-    for (const c of colliders) {
-      if (c.isBridge && bridgeSolved) continue; // Walkable bridge
-      const dist = Math.hypot(clampedX - c.x, clampedZ - c.z);
-      if (dist < c.radius + 0.5) {
-        collision = true;
-        break;
+    // Solid obstacle collision check with sliding response
+    const playerRadius = 0.42;
+
+    const isCollidingAt = (testPos: { x: number; z: number }): boolean => {
+      for (const c of colliders) {
+        if (c.isBridge && bridgeSolved) continue; // Walkable bridge
+        const dist = Math.hypot(testPos.x - c.x, testPos.z - c.z);
+        if (dist < c.radius + playerRadius) {
+          const obstacleTop = this.getObstacleTop(c);
+          // If the player's feet are above the top of this obstacle, they are landing or walking on it
+          if (this.position.y >= obstacleTop - 0.2) {
+            continue;
+          }
+          // If low step surface (e.g. stepping stones <= 0.45m), allow step-up
+          if (c.climbable && (obstacleTop - this.position.y <= 0.45)) {
+            continue;
+          }
+          // SOLID: completely block passing through!
+          return true;
+        }
+      }
+      return false;
+    };
+
+    let finalX = this.position.x;
+    let finalZ = this.position.z;
+
+    if (!isCollidingAt({ x: clampedX, z: clampedZ })) {
+      finalX = clampedX;
+      finalZ = clampedZ;
+    } else {
+      // Slide along X or Z if possible
+      const xClear = !isCollidingAt({ x: clampedX, z: this.position.z });
+      if (xClear) finalX = clampedX;
+      const zClear = !isCollidingAt({ x: this.position.x, z: clampedZ });
+      if (zClear) finalZ = clampedZ;
+    }
+
+    this.position.x = finalX;
+    this.position.z = finalZ;
+
+    // 2. Vertical height & Gravity physics
+    const surfaceHeight = this.getSurfaceHeight(this.position.x, this.position.z, colliders, bridgeSolved);
+
+    if (!this.isGrounded) {
+      this.verticalVelocity += this.gravity * delta;
+      this.position.y += this.verticalVelocity * delta;
+
+      // Check landing
+      if (this.position.y <= surfaceHeight) {
+        this.position.y = surfaceHeight;
+        this.verticalVelocity = 0;
+        this.isGrounded = true;
+      }
+    } else {
+      // If grounded, follow rising terrain or vault smoothly
+      if (this.position.y < surfaceHeight) {
+        this.position.y = THREE.MathUtils.lerp(this.position.y, surfaceHeight, Math.min(1, 16 * delta));
+      } else if (this.position.y > surfaceHeight + 0.18) {
+        // Stepped off a ledge -> start falling
+        this.isGrounded = false;
+      } else {
+        this.position.y = surfaceHeight;
       }
     }
 
-    if (!collision) {
-      this.position.x = clampedX;
-      this.position.z = clampedZ;
-    }
-
-    // Calculate terrain height below player
-    this.position.y = this.getTerrainHeight(this.position.x, this.position.z, bridgeSolved);
     this.group.position.copy(this.position);
 
     // Pulse staff crystal
     this.staffCrystal.rotation.y += delta * 2;
     this.staffCrystal.rotation.z += delta * 1.5;
 
-    // 2. Camera follow positioning
+    // 3. Camera follow positioning
     this.updateCamera();
 
-    // 3. Detect closest interactive target within reach
+    // 4. Detect closest interactive target within reach (including height reach)
     this.detectInteractives(interactives);
+  }
+
+  private getSurfaceHeight(
+    x: number,
+    z: number,
+    colliders: { x: number; z: number; radius: number; isBridge?: boolean; height?: number; climbable?: boolean }[],
+    bridgeSolved: boolean
+  ): number {
+    let baseHeight = this.getTerrainHeight(x, z, bridgeSolved);
+
+    // Check elevated climbable surfaces (rocks, stepping stones, altars)
+    for (const c of colliders) {
+      if (c.climbable && c.height !== undefined) {
+        const dist = Math.hypot(x - c.x, z - c.z);
+        if (dist <= c.radius + 0.25) {
+          const top = this.getObstacleTop(c);
+          baseHeight = Math.max(baseHeight, top);
+        }
+      }
+    }
+
+    return baseHeight;
+  }
+
+  private getObstacleTop(c: { x: number; z: number; height?: number }): number {
+    const ground = this.getTerrainHeight(c.x, c.z, false);
+    return ground + (c.height || 1.0);
   }
 
   private getTerrainHeight(x: number, z: number, bridgeSolved: boolean): number {
@@ -284,28 +386,7 @@ export class PlayerController {
     if (Math.abs(x) < 1.7 && z > -26 && z < -10) {
       return 1.1; // height of bridge surface
     }
-
-    let y = Math.sin(x * 0.04) * Math.cos(z * 0.04) * 1.5;
-
-    // Baobab mound
-    const distToBaobab = Math.hypot(x - 0, z - 45);
-    if (distToBaobab < 25) {
-      y += (1 - distToBaobab / 25) * 3.0;
-    }
-
-    // Shrine mound
-    const distToShrine = Math.hypot(x + 40, z - 20);
-    if (distToShrine < 20) {
-      y += (1 - distToShrine / 20) * 2.5;
-    }
-
-    // Riverbed
-    const riverDist = Math.abs(x - 30);
-    if (riverDist < 10 && z > -35 && z < 45) {
-      y -= (1 - riverDist / 10) * 3.0;
-    }
-
-    return Math.max(-0.5, y);
+    return getTerrainHeightAt(x, z);
   }
 
   private updateCamera() {
@@ -331,9 +412,14 @@ export class PlayerController {
     let closest: InteractiveObject | null = null;
     let minDistance = Infinity;
 
+    // Player torso reach height so objects on platforms or floating above ground are reachable
+    const playerCenter = this.position.clone();
+    playerCenter.y += 1.2;
+
     for (const obj of interactives) {
-      const dist = this.position.distanceTo(obj.position);
-      if (dist < obj.radius && dist < minDistance) {
+      const dist = playerCenter.distanceTo(obj.position);
+      const reachRadius = obj.radius + 1.6;
+      if (dist < reachRadius && dist < minDistance) {
         minDistance = dist;
         closest = obj;
       }

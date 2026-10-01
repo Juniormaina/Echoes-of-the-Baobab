@@ -162,6 +162,7 @@ By channeling the ancient ability to **REMEMBER**, players temporarily unveil th
 | Key / Input | Action |
 | :--- | :--- |
 | **W, A, S, D** / **Arrow Keys** | Walk / Run Movement |
+| **Space** | Jump / Climb onto Elevated Objects & Ledges |
 | **Shift** (Hold) | Sprint |
 | **Mouse Click + Drag** | Orbit 3rd-person Camera |
 | **Mouse Scroll Wheel** | Zoom In / Out |
@@ -171,7 +172,7 @@ By channeling the ancient ability to **REMEMBER**, players temporarily unveil th
 ### Mobile & Touch Screens
 - **On-Screen D-Pad**: Directional movement buttons (▲, ◀, ▼, ▶)
 - **Touch Drag**: Drag anywhere on the 3D viewport to orbit the camera
-- **Action Buttons**: Dedicated touch buttons for **REMEMBER**, **INTERACT**, and **RUN** toggle
+- **Action Buttons**: Dedicated touch buttons for **JUMP**, **RUN**, **INTERACT**, and **REMEMBER**
 
 ---
 
