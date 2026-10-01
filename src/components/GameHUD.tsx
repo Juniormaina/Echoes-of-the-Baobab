@@ -61,12 +61,41 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
   return (
     <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-4 sm:p-6 select-none">
-      {/* Visual distortion / cyan-gold aura when REMEMBER is active */}
+      {/* Growing Glowing Ring & Mystical Distortion when REMEMBER is active */}
       {isRememberActive && (
-        <div className="absolute inset-0 pointer-events-none border-[12px] border-cyan-400/30 bg-radial from-transparent via-cyan-950/20 to-amber-500/20 transition-all duration-500">
-          <div className="absolute top-16 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-cyan-900/80 border border-cyan-400/60 text-cyan-200 text-xs font-cinzel font-bold tracking-widest animate-pulse flex items-center gap-2 shadow-lg shadow-cyan-900/50">
-            <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
+        <div className="absolute inset-0 pointer-events-none z-10 transition-opacity duration-700 ease-in-out">
+          {/* 1. Primary pulsating glowing ring along screen edges */}
+          <div className="absolute inset-0 rounded-none border-[3px] border-cyan-400/80 animate-remember-ring transition-all" />
+
+          {/* 2. Secondary expanding inner aura ring that breathes / grows */}
+          <div className="absolute inset-2 sm:inset-4 rounded-xl sm:rounded-2xl border border-cyan-300/40 animate-ring-expand-pulse pointer-events-none" />
+
+          {/* 3. Mystical radial color gradient sweeping inward from edges */}
+          <div className="absolute inset-0 bg-radial from-transparent via-cyan-950/15 to-cyan-500/25 animate-shimmer-sweep pointer-events-none" />
+
+          {/* 4. Four Mystical Ancestral Corner Flourishes */}
+          {/* Top-Left */}
+          <div className="absolute top-3 left-3 sm:top-5 sm:left-5 w-8 h-8 sm:w-12 sm:h-12 border-t-2 border-l-2 border-amber-300/90 rounded-tl-lg shadow-[0_0_15px_rgba(245,158,11,0.8)] pointer-events-none flex items-start justify-start p-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_#38bdf8] animate-ping" />
+          </div>
+          {/* Top-Right */}
+          <div className="absolute top-3 right-3 sm:top-5 sm:right-5 w-8 h-8 sm:w-12 sm:h-12 border-t-2 border-r-2 border-amber-300/90 rounded-tr-lg shadow-[0_0_15px_rgba(245,158,11,0.8)] pointer-events-none flex items-start justify-end p-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_#38bdf8] animate-ping" />
+          </div>
+          {/* Bottom-Left */}
+          <div className="absolute bottom-3 left-3 sm:bottom-5 sm:left-5 w-8 h-8 sm:w-12 sm:h-12 border-b-2 border-l-2 border-amber-300/90 rounded-bl-lg shadow-[0_0_15px_rgba(245,158,11,0.8)] pointer-events-none flex items-end justify-start p-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_#38bdf8] animate-ping" />
+          </div>
+          {/* Bottom-Right */}
+          <div className="absolute bottom-3 right-3 sm:bottom-5 sm:right-5 w-8 h-8 sm:w-12 sm:h-12 border-b-2 border-r-2 border-amber-300/90 rounded-br-lg shadow-[0_0_15px_rgba(245,158,11,0.8)] pointer-events-none flex items-end justify-end p-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_#38bdf8] animate-ping" />
+          </div>
+
+          {/* 5. Center-Top Mystical Badge */}
+          <div className="absolute top-14 sm:top-16 left-1/2 -translate-x-1/2 px-5 py-2 rounded-full bg-gradient-to-r from-cyan-950/90 via-sky-900/90 to-cyan-950/90 border border-cyan-300/70 text-cyan-100 text-xs font-cinzel font-bold tracking-widest shadow-[0_0_25px_rgba(56,189,248,0.6)] flex items-center gap-2.5 backdrop-blur-md animate-pulse">
+            <Sparkles className="w-4 h-4 text-cyan-300 animate-spin" />
             <span>PAST REALM REVEALED · {rememberTimeRemaining.toFixed(1)}s</span>
+            <span className="w-2 h-2 rounded-full bg-cyan-300 shadow-[0_0_10px_#38bdf8]" />
           </div>
         </div>
       )}
