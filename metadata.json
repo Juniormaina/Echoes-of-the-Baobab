@@ -1,0 +1,6 @@
+{
+  "name": "Echoes of the Baobab",
+  "description": "An African-inspired 3D mystical exploration puzzle game where players reveal the past using the REMEMBER mechanic to restore ancient lands and the Great Baobab.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
