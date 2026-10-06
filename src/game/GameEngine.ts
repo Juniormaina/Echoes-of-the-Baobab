@@ -428,8 +428,8 @@ export class GameEngine {
       this.lastMouseX = e.clientX;
       this.lastMouseY = e.clientY;
 
-      const factorX = this.invertLookX ? 0.005 : -0.005;
-      this.player.rotateCamera(dx * factorX, dy * 0.005);
+      const factorX = this.invertLookX ? 0.0075 : -0.0075;
+      this.player.rotateCamera(dx * factorX, dy * 0.0075);
     });
 
     // Touch controls for camera swipe
@@ -448,8 +448,8 @@ export class GameEngine {
         const dy = e.touches[0].clientY - touchStartY;
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
-        const factorX = this.invertLookX ? 0.006 : -0.006;
-        this.player.rotateCamera(dx * factorX, dy * 0.006);
+        const factorX = this.invertLookX ? 0.0085 : -0.0085;
+        this.player.rotateCamera(dx * factorX, dy * 0.0085);
       }
     }, { passive: true });
 

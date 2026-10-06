@@ -811,7 +811,7 @@ export class PlayerController {
     const isOnBridgeSpan = Math.abs(nextX) < 1.7 && nextZ > -26 && nextZ < -10;
 
     if (inChasmZone) {
-      if (!bridgeSolved && !isOnBridgeSpan) {
+      if (!bridgeSolved || !isOnBridgeSpan) {
         // Player falls into the chasm!
         onFallChasm();
         return;

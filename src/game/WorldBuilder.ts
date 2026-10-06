@@ -553,8 +553,8 @@ export class WorldBuilder {
       mesh: runeStone,
     });
     this.colliders.push({ x: -2.8, z: -10.5, radius: 1.2, height: 2.8 });
-    this.colliders.push({ x: 0, z: -11, radius: 2.2, height: 4.5 });
-    this.colliders.push({ x: 0, z: -25, radius: 2.2, height: 4.5 });
+    this.colliders.push({ x: 0, z: -11, radius: 2.2, height: 4.5, isBridge: true });
+    this.colliders.push({ x: 0, z: -25, radius: 2.2, height: 4.5, isBridge: true });
   }
 
   private buildForgottenRiverPuzzle() {

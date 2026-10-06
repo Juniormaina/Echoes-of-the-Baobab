@@ -7,6 +7,7 @@ class SoundEngine {
   private isMuted: boolean = false;
   private masterGain: GainNode | null = null;
   private musicGain: GainNode | null = null;
+  private musicFilter: BiquadFilterNode | null = null;
   private sfxGain: GainNode | null = null;
   private isMusicPlaying: boolean = false;
   private musicInterval: number | null = null;
@@ -28,7 +29,13 @@ class SoundEngine {
 
       this.musicGain = this.ctx.createGain();
       this.musicGain.gain.setValueAtTime(0.45, this.ctx.currentTime);
-      this.musicGain.connect(this.masterGain);
+
+      this.musicFilter = this.ctx.createBiquadFilter();
+      this.musicFilter.type = 'lowpass';
+      this.musicFilter.frequency.setValueAtTime(20000, this.ctx.currentTime);
+
+      this.musicGain.connect(this.musicFilter);
+      this.musicFilter.connect(this.masterGain);
 
       this.sfxGain = this.ctx.createGain();
       this.sfxGain.gain.setValueAtTime(0.65, this.ctx.currentTime);
@@ -139,6 +146,12 @@ class SoundEngine {
 
     const t = this.ctx.currentTime;
 
+    // Smoothly muffle background music & dip volume to make past realm sound dreamlike and distant
+    if (this.musicGain && this.musicFilter) {
+      this.musicFilter.frequency.setTargetAtTime(450, t, 0.18);
+      this.musicGain.gain.setTargetAtTime(0.18, t, 0.22);
+    }
+
     // 1. Low mystic gong / sub swell
     const subOsc = this.ctx.createOscillator();
     const subGain = this.ctx.createGain();
@@ -176,6 +189,12 @@ class SoundEngine {
     this.init();
     if (!this.ctx || !this.sfxGain || this.isMuted) return;
     const t = this.ctx.currentTime;
+
+    // Smoothly restore background music & open up filter completely
+    if (this.musicGain && this.musicFilter) {
+      this.musicFilter.frequency.setTargetAtTime(20000, t, 0.25);
+      this.musicGain.gain.setTargetAtTime(0.45, t, 0.3);
+    }
 
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
