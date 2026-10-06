@@ -4,29 +4,30 @@
 
 ---
 
-## 📸 Visual Showcase & Screenshots
+## Play
 
-### 1. Title & Cover Screen
-![Echoes of the Baobab Cover Screen](/src/assets/images/cover_page_1790840246811.jpg)
-*The cinematic start screen introducing the colossal Baobab tree over a sunset savanna, featuring the difficulty selector and entry to the expedition.*
+The game runs in a desktop or mobile browser. Keyboard and mouse, or the on-screen touch controls. There is no gamepad support and no native console build.
 
----
+```bash
+npm install
+npm run dev
+```
 
-### 2. In-Game REMEMBER Realm with Growing Glowing Edge Ring
-![REMEMBER Mechanic Active with Glowing Ring](/src/assets/images/remember_gameplay_1790840257471.jpg)
-*Activating the REMEMBER ability [R] reveals the past realm with an ethereal intact bridge across the gorge, accompanied by a dynamic, pulsating cyan-and-gold edge ring and ancestral corner runes.*
+Open the local URL Vite prints. For the production build:
 
----
-
-### 3. The Memory Shrine Puzzle
-![The Memory Shrine Puzzle](/src/assets/images/memory_shrine_1790840269392.jpg)
-*The ancient circular sanctuary atop the western kopje. Players observe the ancestral spirits during REMEMBER to attune the three sacred animal totems in order.*
+```bash
+npm run build
+npm run preview
+```
 
 ---
 
-### 4. The Grand Baobab Restoration (Finale)
-![The Baobab Blooms](/src/assets/images/baobab_bloom_1790840279125.jpg)
-*When all four Memory Fragments are returned to the Heartwood, the Grandfather of Trees ignites with golden light, sprouting thousands of vibrant leaves as fireflies ascend into the twilight.*
+## Scenes
+
+1. **Title.** The start screen offers Kidogo, Safari, and Ancestor, then **BEGIN JOURNEY**.
+2. **REMEMBER.** Pressing **R** shows the ghost bridge, ancestral echoes, and a glowing edge ring. The past-realm bed fades out over one second when REMEMBER ends.
+3. **Memory Shrine.** Three totems stand on the western rise: Hornbill, Elephant, and Sun Leopard. REMEMBER brightens their marks.
+4. **Finale.** After Song, Rain, and Community are gathered, the heartwood blooms in the world and the win screen appears.
 
 ---
 
@@ -88,7 +89,7 @@ By channeling the ancient ability to **REMEMBER**, players temporarily unveil th
           | - Spherical camera follow & yaw/pitch orbit            |
           | - Terrain elevation height sampling                    |
           | - Gorge fall detection -> Trigger Checkpoint / Loss    |
-          | - Interactive proximity radius detection (3.5m)        |
+          | - Interactive proximity detection                      |
           +--------------------------------------------------------+
                                       |
                                       v
@@ -149,10 +150,10 @@ By channeling the ancient ability to **REMEMBER**, players temporarily unveil th
 2. **Consult the Griot**: Speak with *Baba Olatunji*, the elder Storyteller seated near the starting path with his kora harp.
 3. **Use REMEMBER [R]**: Temporarily peer into the past to uncover hidden clues, bridges, and alignments.
 4. **Solve the Three Sacred Puzzles**:
-   - **The Forgotten Bridge**: Discover the ancient sun-rune in the past and channel your echo to project the resonant bridge across the chasm.
-   - **The Forgotten River**: Observe the watergate's sacred three-wheel alignment in the past (Wave, Sprout, Sun) and rotate the wheels in the present to unleash the river and elevate the stepping stones.
-   - **The Memory Shrine**: Ascend to the elevated western hill and observe the ancestral spirits to attune the three totem monoliths (Hornbill of Sky $\rightarrow$ Elephant of Wisdom $\rightarrow$ Sun Leopard of Fire) in their sacred order.
-5. **Awaken the Great Baobab**: Collect all four sacred Memory Fragments (**Memory of Song**, **Memory of Rain**, **Memory of Community**, and **Memory of the Baobab**) and bring them to the heartwood altar to trigger the final golden bloom restoration.
+   - **The Forgotten Bridge**: REMEMBER reveals the lost span. Interact with the sun-rune to restore the deck. The gorge can be crossed only on that deck.
+   - **The Forgotten River**: Three wheels stand at the watergate — Sun, Wave, and Sprout, west to east. Each interact cycles that wheel. One alignment releases the river.
+   - **The Memory Shrine**: Attune Hornbill, then Elephant, then Sun Leopard. A wrong totem clears the sequence in progress. A completed shrine stays solved.
+5. **Awaken the Great Baobab**: Gather **Memory of Song**, **Memory of Rain**, and **Memory of Community**, then speak to the heartwood. **Memory of the Baobab** is granted as the canopy blooms. The win screen follows. The three puzzles are the journey; the win check looks for those three memories.
 
 ---
 
@@ -161,28 +162,33 @@ By channeling the ancient ability to **REMEMBER**, players temporarily unveil th
 ### Desktop (Keyboard & Mouse)
 | Key / Input | Action |
 | :--- | :--- |
-| **W, A, S, D** / **Arrow Keys** | Walk / Run Movement |
-| **Space** | Jump / Climb onto Elevated Objects & Ledges |
-| **Shift** (Hold) | Sprint |
-| **Mouse Click + Drag** | Orbit 3rd-person Camera |
-| **Mouse Scroll Wheel** | Zoom In / Out |
-| **E** | Interact / Channel Echo / Rotate Wheel / Speak |
-| **R** | Activate **REMEMBER** (Past Realm) |
+| **W, A, S, D** / **Arrow Keys** | Walk. Releasing the key stops that direction. |
+| **Space** | Jump, including onto ledges and the stepping stones. |
+| **Shift** (Hold) | Sprint while held. |
+| **Mouse drag** | Orbit the third-person camera. Left or right button. |
+| **Mouse scroll wheel** | Zoom in or out. |
+| **E** | Interact, turn a wheel, or speak. Once per press. |
+| **R** | Toggle **REMEMBER**. Once per press. |
 
 ### Mobile & Touch Screens
-- **On-Screen D-Pad**: Directional movement buttons (▲, ◀, ▼, ▶)
-- **Touch Drag**: Drag anywhere on the 3D viewport to orbit the camera
-- **Action Buttons**: Dedicated touch buttons for **JUMP**, **RUN**, **INTERACT**, and **REMEMBER**
+
+Touch controls appear on a coarse pointer (a phone or tablet, portrait or landscape). A narrow desktop window does not show them.
+
+- **D-pad**: ▲ ◀ ▼ ▶. Releasing one direction stops that direction.
+- **Touch drag** on the world: orbit the camera. This can happen while another finger holds movement or an action.
+- **JUMP**, **RUN** (toggle), **INTERACT**, and **REMEMBER**. Interact and REMEMBER fire once per tap.
 
 ---
 
 ## ⚖️ Difficulty Configurations
 
-| Difficulty | Subtitle | REMEMBER Duration | Cooldown | Guidance / Clues |
-| :--- | :--- | :--- | :--- | :--- |
-| **KIDOGO** | Gentle / Easy | **14.0s** | 2.0s | Luminous guidance beacons, forgiving timing |
-| **SAFARI** | Balanced / Normal | **8.0s** | 3.0s | Intended spiritual exploration experience |
-| **ANCESTOR** | Sacred / Hard | **4.5s** | 4.0s | Fleet memory duration, subtle faint runes, strict timing |
+Difficulty changes how long REMEMBER lasts and how long you wait before using it again.
+
+| Difficulty | Subtitle | REMEMBER Duration | Cooldown |
+| :--- | :--- | :--- | :--- |
+| **KIDOGO** | Gentle / Easy | **14.0s** | 2.0s |
+| **SAFARI** | Balanced / Normal | **8.0s** | 3.0s |
+| **ANCESTOR** | Sacred / Hard | **4.5s** | 4.0s |
 
 ---
 
@@ -211,12 +217,6 @@ By channeling the ancient ability to **REMEMBER**, players temporarily unveil th
 ├── package.json                 # Project dependencies & scripts
 ├── README.md                    # Comprehensive documentation & blueprints
 ├── src/
-│   ├── assets/
-│   │   └── images/              # Generated high-resolution in-game screenshots
-│   │       ├── cover_page_*.jpg
-│   │       ├── remember_gameplay_*.jpg
-│   │       ├── memory_shrine_*.jpg
-│   │       └── baobab_bloom_*.jpg
 │   ├── main.tsx                 # React DOM mount point
 │   ├── App.tsx                  # Root orchestration & game view state
 │   ├── index.css                # Tailwind CSS imports & custom glowing ring keyframes
@@ -236,7 +236,7 @@ By channeling the ancient ability to **REMEMBER**, players temporarily unveil th
 │       ├── DialogueModal.tsx    # Storyteller Griot dialog & African proverbs
 │       ├── LossScreen.tsx       # Checkpoint respawn screen
 │       ├── WinScreen.tsx        # Victory screen with statistics & confetti
-│       └── RestorationCinematic.tsx # Baobab awakening overlay
+│       └── RestorationCinematic.tsx # Unused by the win path; the bloom plays in the world
 ```
 
 ---
