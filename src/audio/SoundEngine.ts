@@ -9,6 +9,7 @@ class SoundEngine {
   private musicGain: GainNode | null = null;
   private musicFilter: BiquadFilterNode | null = null;
   private sfxGain: GainNode | null = null;
+  private rememberBedGain: GainNode | null = null;
   private isMusicPlaying: boolean = false;
   private musicInterval: number | null = null;
   private memoryLevel: number = 0; // 0 to 4 layers
@@ -52,6 +53,24 @@ class SoundEngine {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
+  }
+
+  /** Quiet past-realm drone. Its gain is the node that fades out over 1 second. */
+  private ensureRememberBed() {
+    if (!this.ctx || !this.sfxGain || this.rememberBedGain) return;
+    const osc = this.ctx.createOscillator();
+    const filter = this.ctx.createBiquadFilter();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(98, this.ctx.currentTime);
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(420, this.ctx.currentTime);
+    gain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start();
+    this.rememberBedGain = gain;
   }
 
   public setMemoryLevel(level: number) {
@@ -146,10 +165,23 @@ class SoundEngine {
 
     const t = this.ctx.currentTime;
 
-    // Smoothly muffle background music & dip volume to make past realm sound dreamlike and distant
+    this.ensureRememberBed();
+    // Ease the present-day music down, and bring the past-realm bed up. Both are linear.
     if (this.musicGain && this.musicFilter) {
-      this.musicFilter.frequency.setTargetAtTime(450, t, 0.18);
-      this.musicGain.gain.setTargetAtTime(0.18, t, 0.22);
+      const freq = this.musicFilter.frequency;
+      const music = this.musicGain.gain;
+      freq.cancelScheduledValues(t);
+      music.cancelScheduledValues(t);
+      freq.setValueAtTime(freq.value, t);
+      music.setValueAtTime(music.value, t);
+      freq.linearRampToValueAtTime(480, t + 0.8);
+      music.linearRampToValueAtTime(0.18, t + 0.8);
+    }
+    if (this.rememberBedGain) {
+      const bed = this.rememberBedGain.gain;
+      bed.cancelScheduledValues(t);
+      bed.setValueAtTime(bed.value, t);
+      bed.linearRampToValueAtTime(0.14, t + 0.8);
     }
 
     // 1. Low mystic gong / sub swell
@@ -190,10 +222,22 @@ class SoundEngine {
     if (!this.ctx || !this.sfxGain || this.isMuted) return;
     const t = this.ctx.currentTime;
 
-    // Smoothly restore background music & open up filter completely
+    // One-second linear exit. setTargetAtTime is exponential and lets the past bed stop abruptly.
     if (this.musicGain && this.musicFilter) {
-      this.musicFilter.frequency.setTargetAtTime(20000, t, 0.25);
-      this.musicGain.gain.setTargetAtTime(0.45, t, 0.3);
+      const freq = this.musicFilter.frequency;
+      const music = this.musicGain.gain;
+      freq.cancelScheduledValues(t);
+      music.cancelScheduledValues(t);
+      freq.setValueAtTime(freq.value, t);
+      music.setValueAtTime(music.value, t);
+      freq.linearRampToValueAtTime(20000, t + 1.0);
+      music.linearRampToValueAtTime(0.45, t + 1.0);
+    }
+    if (this.rememberBedGain) {
+      const bed = this.rememberBedGain.gain;
+      bed.cancelScheduledValues(t);
+      bed.setValueAtTime(Math.max(bed.value, 0.0001), t);
+      bed.linearRampToValueAtTime(0.0001, t + 1.0);
     }
 
     const osc = this.ctx.createOscillator();

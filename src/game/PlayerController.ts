@@ -805,17 +805,18 @@ export class PlayerController {
     const nextX = this.position.x + this.velocity.x * delta;
     const nextZ = this.position.z + this.velocity.z * delta;
 
-    // Chasm check at Forgotten Bridge: gorge is around z = -18, x from -24 to 24.
-    // If not on the bridge and bridge not solved or stepped off edge:
-    const inChasmZone = nextZ > -25 && nextZ < -11 && Math.abs(nextX) < 22;
-    const isOnBridgeSpan = Math.abs(nextX) < 1.7 && nextZ > -26 && nextZ < -10;
+    // The gorge is a full barrier between the near savanna (z > -11) and the far
+    // bank (z < -26). The only safe crossing is the restored deck. The river
+    // gate sits in a pocket east of the gorge so that puzzle stays reachable.
+    const onDeck = bridgeSolved && Math.abs(nextX) < 1.7 && nextZ > -27 && nextZ < -9.5;
+    const inRiverPocket = nextX > 23 && nextX < 40 && nextZ > -27 && nextZ < -11;
+    const inGorge = nextZ < -11 && nextZ > -26;
+    const leavingNearBank = this.position.z > -26 && nextZ <= -26;
+    const throughBridgeMouth = bridgeSolved && Math.abs(nextX) < 1.7 && Math.abs(this.position.x) < 2.2;
 
-    if (inChasmZone) {
-      if (!bridgeSolved || !isOnBridgeSpan) {
-        // Player falls into the chasm!
-        onFallChasm();
-        return;
-      }
+    if ((inGorge && !onDeck && !inRiverPocket) || (leavingNearBank && !throughBridgeMouth)) {
+      onFallChasm();
+      return;
     }
 
     // World boundary clamping (-110 to 110)
@@ -929,9 +930,9 @@ export class PlayerController {
   }
 
   private getTerrainHeight(x: number, z: number, bridgeSolved: boolean): number {
-    // If on bridge
-    if (Math.abs(x) < 1.7 && z > -26 && z < -10) {
-      return 1.1; // height of bridge surface
+    // The deck exists only after the rune restores it. Before that, this span is open gorge.
+    if (bridgeSolved && Math.abs(x) < 1.7 && z > -27 && z < -9.5) {
+      return 1.1;
     }
     return getTerrainHeightAt(x, z);
   }

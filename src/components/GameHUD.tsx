@@ -1,8 +1,31 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { InteractiveObject } from '../game/WorldBuilder';
 import { Difficulty, DIFFICULTY_CONFIGS, MemoryFragment } from '../types/game';
 import { Eye, Hand, Sparkles, BookOpen, Settings, Volume2, VolumeX, Compass } from 'lucide-react';
 import { soundEngine } from '../audio/SoundEngine';
+
+const TOUCH_PRIMARY_QUERY = '(hover: none) and (pointer: coarse)';
+
+/** Touch-primary devices, independent of viewport width. Desktop mice stay excluded. */
+function useTouchPrimary() {
+  const [touchPrimary, setTouchPrimary] = useState(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false;
+    return window.matchMedia(TOUCH_PRIMARY_QUERY).matches;
+  });
+
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const media = window.matchMedia(TOUCH_PRIMARY_QUERY);
+    const sync = () => setTouchPrimary(media.matches);
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
+
+  return touchPrimary;
+}
+
+type MoveDir = 'forward' | 'backward' | 'left' | 'right';
 
 interface GameHUDProps {
   difficulty: Difficulty;
@@ -40,7 +63,67 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   onMoveChange,
   onRunToggle,
 }) => {
+  const touchPrimary = useTouchPrimary();
   const [isRunning, setIsRunning] = useState(false);
+  const heldDirs = useRef<Record<MoveDir, boolean>>({
+    forward: false,
+    backward: false,
+    left: false,
+    right: false,
+  });
+  const onMoveChangeRef = useRef(onMoveChange);
+  onMoveChangeRef.current = onMoveChange;
+
+  const publishMove = () => {
+    const dirs = heldDirs.current;
+    onMoveChangeRef.current(dirs.forward, dirs.backward, dirs.left, dirs.right);
+  };
+
+  const clearDir = (dir: MoveDir) => {
+    if (!heldDirs.current[dir]) return;
+    heldDirs.current[dir] = false;
+    publishMove();
+  };
+
+  useEffect(() => {
+    const clearAll = () => {
+      heldDirs.current = { forward: false, backward: false, left: false, right: false };
+      onMoveChangeRef.current(false, false, false, false);
+    };
+    window.addEventListener('blur', clearAll);
+    return () => {
+      window.removeEventListener('blur', clearAll);
+      clearAll();
+    };
+  }, []);
+
+  const bindDir = (dir: MoveDir) => ({
+    onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      heldDirs.current[dir] = true;
+      publishMove();
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // Capture is unavailable for a synthetic event. The press is already recorded.
+      }
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLButtonElement>) => {
+      heldDirs.current[dir] = false;
+      publishMove();
+      try {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        }
+      } catch {
+        // The pointer was already released.
+      }
+    },
+    onPointerCancel: () => clearDir(dir),
+    onTouchCancel: () => clearDir(dir),
+    onLostPointerCapture: () => clearDir(dir),
+  });
   const collectedCount = memories.filter((m) => m.unlocked).length;
   const currentDiffConfig = DIFFICULTY_CONFIGS[difficulty];
 
@@ -62,7 +145,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   const rememberPct = rememberMaxDuration > 0 ? (rememberTimeRemaining / rememberMaxDuration) * 100 : 0;
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-4 sm:p-6 select-none">
+    <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between overflow-x-hidden p-2 min-[390px]:p-4 sm:p-6 select-none">
       {/* Growing Glowing Ring & Mystical Distortion when REMEMBER is active */}
       {isRememberActive && (
         <div className="absolute inset-0 pointer-events-none z-10 transition-opacity duration-700 ease-in-out">
@@ -103,16 +186,16 @@ export const GameHUD: React.FC<GameHUDProps> = ({
       )}
 
       {/* TOP BAR: Memories Counter, Title, Objective & Controls */}
-      <div className="flex items-start justify-between w-full">
+      <div className="flex items-start justify-between w-full min-w-0 gap-2">
         {/* Left: Memory counter & Objective */}
-        <div className="flex flex-col gap-1.5">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div className="flex items-center gap-3">
             <button
               onClick={() => {
                 soundEngine.playButtonClick();
                 onOpenMemories();
               }}
-              className="pointer-events-auto flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-[#261109]/80 hover:bg-[#391a0e]/90 border border-amber-800/60 shadow-md backdrop-blur-xs transition-colors cursor-pointer group"
+              className="pointer-events-auto flex min-w-0 items-center gap-2 px-2.5 py-1.5 min-[400px]:gap-2.5 min-[400px]:px-3.5 rounded-xl bg-[#261109]/80 hover:bg-[#391a0e]/90 border border-amber-800/60 shadow-md backdrop-blur-xs transition-colors cursor-pointer group"
             >
               <Sparkles className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
               <div className="flex items-baseline gap-1.5">
@@ -132,20 +215,20 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           </div>
 
           {/* Environmental Objective guidance */}
-          <div className="flex items-center gap-2 text-xs text-amber-200/90 bg-[#1c0a04]/70 px-3 py-1.5 rounded-lg border border-amber-900/30 max-w-md backdrop-blur-xs">
+          <div className="flex min-w-0 max-w-full items-center gap-2 text-xs text-amber-200/90 bg-[#1c0a04]/70 px-3 py-1.5 rounded-lg border border-amber-900/30 sm:max-w-md backdrop-blur-xs">
             <Compass className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <span className="truncate">{currentObjective}</span>
           </div>
         </div>
 
         {/* Right: Quick actions (Memories, Settings, Sound) */}
-        <div className="pointer-events-auto flex items-center gap-2">
+        <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
           <button
             onClick={() => {
               soundEngine.playButtonClick();
               onOpenMemories();
             }}
-            className="p-2.5 rounded-xl bg-[#261109]/80 hover:bg-[#391a0e]/90 border border-amber-800/60 text-amber-300 hover:text-amber-100 transition-colors shadow-md backdrop-blur-xs cursor-pointer"
+            className="hidden min-[400px]:inline-flex p-2.5 rounded-xl bg-[#261109]/80 hover:bg-[#391a0e]/90 border border-amber-800/60 text-amber-300 hover:text-amber-100 transition-colors shadow-md backdrop-blur-xs cursor-pointer"
             title="Open Memories Journal"
           >
             <BookOpen className="w-4 h-4" />
@@ -156,7 +239,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
               soundEngine.playButtonClick();
               onOpenSettings();
             }}
-            className="p-2.5 rounded-xl bg-[#261109]/80 hover:bg-[#391a0e]/90 border border-amber-800/60 text-amber-300 hover:text-amber-100 transition-colors shadow-md backdrop-blur-xs cursor-pointer"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#261109]/80 hover:bg-[#391a0e]/90 border border-amber-800/60 text-amber-300 hover:text-amber-100 transition-colors shadow-md backdrop-blur-xs cursor-pointer sm:h-auto sm:w-auto sm:p-2.5"
             title="Settings & Guide"
           >
             <Settings className="w-4 h-4" />
@@ -164,7 +247,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
           <button
             onClick={onToggleMute}
-            className="p-2.5 rounded-xl bg-[#261109]/80 hover:bg-[#391a0e]/90 border border-amber-800/60 text-amber-300 hover:text-amber-100 transition-colors shadow-md backdrop-blur-xs cursor-pointer"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#261109]/80 hover:bg-[#391a0e]/90 border border-amber-800/60 text-amber-300 hover:text-amber-100 transition-colors shadow-md backdrop-blur-xs cursor-pointer sm:h-auto sm:w-auto sm:p-2.5"
             title={isMuted ? 'Unmute' : 'Mute'}
           >
             {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
@@ -181,51 +264,121 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           <span className="font-cinzel text-sm font-semibold text-amber-100">
             {nearestInteractive.label}
           </span>
-          <button
-            onClick={onTriggerInteract}
-            className="sm:hidden px-3 py-1 bg-amber-500 text-amber-950 rounded-lg text-xs font-bold"
-          >
-            INTERACT
-          </button>
+          {!touchPrimary && (
+            <button
+              onClick={onTriggerInteract}
+              className="sm:hidden min-h-11 px-3 py-1 bg-amber-500 text-amber-950 rounded-lg text-xs font-bold"
+            >
+              INTERACT
+            </button>
+          )}
         </div>
       )}
 
       {/* BOTTOM BAR: Abilities & Virtual Mobile Controls */}
-      <div className="flex items-end justify-between w-full">
-        {/* Mobile On-Screen D-Pad / Move buttons */}
-        <div className="pointer-events-auto grid grid-cols-3 gap-1 sm:hidden">
-          <div />
-          <button
-            onTouchStart={() => onMoveChange(true, false, false, false)}
-            onTouchEnd={() => onMoveChange(false, false, false, false)}
-            className="w-12 h-12 rounded-xl bg-[#2b1208]/80 border border-amber-800/60 text-amber-200 active:bg-amber-600/50 flex items-center justify-center font-bold"
+      {touchPrimary && (
+        <>
+          <div
+            className="pointer-events-auto absolute bottom-2 left-2 z-30 grid grid-cols-[repeat(3,2.75rem)] gap-1 min-[360px]:grid-cols-[repeat(3,3rem)]"
+            data-touch-pad="true"
           >
-            ▲
-          </button>
-          <div />
-          <button
-            onTouchStart={() => onMoveChange(false, false, true, false)}
-            onTouchEnd={() => onMoveChange(false, false, false, false)}
-            className="w-12 h-12 rounded-xl bg-[#2b1208]/80 border border-amber-800/60 text-amber-200 active:bg-amber-600/50 flex items-center justify-center font-bold"
-          >
-            ◀
-          </button>
-          <button
-            onTouchStart={() => onMoveChange(false, true, false, false)}
-            onTouchEnd={() => onMoveChange(false, false, false, false)}
-            className="w-12 h-12 rounded-xl bg-[#2b1208]/80 border border-amber-800/60 text-amber-200 active:bg-amber-600/50 flex items-center justify-center font-bold"
-          >
-            ▼
-          </button>
-          <button
-            onTouchStart={() => onMoveChange(false, false, false, true)}
-            onTouchEnd={() => onMoveChange(false, false, false, false)}
-            className="w-12 h-12 rounded-xl bg-[#2b1208]/80 border border-amber-800/60 text-amber-200 active:bg-amber-600/50 flex items-center justify-center font-bold"
-          >
-            ▶
-          </button>
-        </div>
+            <span />
+            <button
+              type="button"
+              data-move="forward"
+              aria-label="Move forward"
+              {...bindDir('forward')}
+              className="touch-none h-11 w-11 min-[360px]:h-12 min-[360px]:w-12 shrink-0 rounded-xl bg-[#2b1208]/80 border border-amber-800/60 text-amber-200 active:bg-amber-600/50 flex items-center justify-center text-lg font-bold"
+            >
+              ▲
+            </button>
+            <span />
+            <button
+              type="button"
+              data-move="left"
+              aria-label="Move left"
+              {...bindDir('left')}
+              className="touch-none h-11 w-11 min-[360px]:h-12 min-[360px]:w-12 shrink-0 rounded-xl bg-[#2b1208]/80 border border-amber-800/60 text-amber-200 active:bg-amber-600/50 flex items-center justify-center text-lg font-bold"
+            >
+              ◀
+            </button>
+            <button
+              type="button"
+              data-move="backward"
+              aria-label="Move backward"
+              {...bindDir('backward')}
+              className="touch-none h-11 w-11 min-[360px]:h-12 min-[360px]:w-12 shrink-0 rounded-xl bg-[#2b1208]/80 border border-amber-800/60 text-amber-200 active:bg-amber-600/50 flex items-center justify-center text-lg font-bold"
+            >
+              ▼
+            </button>
+            <button
+              type="button"
+              data-move="right"
+              aria-label="Move right"
+              {...bindDir('right')}
+              className="touch-none h-11 w-11 min-[360px]:h-12 min-[360px]:w-12 shrink-0 rounded-xl bg-[#2b1208]/80 border border-amber-800/60 text-amber-200 active:bg-amber-600/50 flex items-center justify-center text-lg font-bold"
+            >
+              ▶
+            </button>
+          </div>
 
+          <div className="pointer-events-auto absolute bottom-2 right-2 z-30 flex max-w-[calc(100%-10.75rem)] flex-col items-end gap-1.5 min-[360px]:max-w-[calc(100%-11.75rem)]">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={onTriggerJump}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="touch-none h-11 min-w-11 min-[360px]:h-12 min-[360px]:min-w-12 rounded-xl border text-[11px] font-semibold tracking-wider font-cinzel bg-[#2b1208]/80 text-amber-200/90 border-amber-700/60 active:bg-amber-600/40 flex items-center justify-center px-1"
+                title="Jump or climb onto elevated objects (Space)"
+              >
+                JUMP
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !isRunning;
+                  setIsRunning(next);
+                  onRunToggle(next);
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                className={`touch-none h-11 min-w-11 min-[360px]:h-12 min-[360px]:min-w-12 rounded-xl border text-[11px] font-semibold tracking-wider font-cinzel px-1 ${
+                  isRunning
+                    ? 'bg-amber-600 text-amber-950 border-amber-400'
+                    : 'bg-[#2b1208]/80 text-amber-200/80 border-amber-800/60'
+                }`}
+              >
+                RUN
+              </button>
+              <button
+                type="button"
+                onClick={onTriggerInteract}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="touch-none h-11 min-w-11 min-[360px]:h-12 min-[360px]:min-w-12 rounded-xl bg-[#2b1208]/90 border border-amber-700/60 text-amber-200 active:bg-amber-600 flex flex-col items-center justify-center font-bold px-1"
+              >
+                <Hand className="w-4 h-4" />
+                <span className="text-[8px] leading-none">INTERACT</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={onTriggerRemember}
+              onPointerDown={(e) => e.stopPropagation()}
+              className={`touch-none relative flex min-h-11 items-center gap-2 rounded-2xl border px-3 py-2 ${
+                isRememberActive
+                  ? 'bg-gradient-to-r from-cyan-600 to-sky-500 border-cyan-300 text-white'
+                  : 'bg-gradient-to-r from-amber-600 via-amber-700 to-orange-700 border-amber-400/80 text-amber-50'
+              }`}
+            >
+              <Eye className={`w-5 h-5 ${isRememberActive ? 'text-cyan-200' : 'text-amber-200'}`} />
+              <span className="font-cinzel font-bold text-xs min-[390px]:text-sm tracking-wide">
+                {isRememberActive ? 'REMEMBERING' : 'REMEMBER'}
+              </span>
+            </button>
+          </div>
+        </>
+      )}
+
+      <div className={`flex items-end justify-between w-full ${touchPrimary ? 'hidden' : ''}`}>
         {/* Center: Desktop controls guide tooltip */}
         <div className="hidden md:flex items-center gap-4 text-[11px] text-amber-300/70 bg-[#1e0c05]/60 px-4 py-2 rounded-xl border border-amber-900/40 backdrop-blur-xs">
           <span><kbd className="px-1.5 py-0.5 rounded bg-amber-950 border border-amber-800 text-amber-200 font-mono text-[10px]">WASD</kbd> Move</span>

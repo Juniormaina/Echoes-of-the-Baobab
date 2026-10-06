@@ -76,6 +76,9 @@ export class GameEngine {
     jump: false,
   };
 
+  /** Key codes that already fired their action for the current physical press. */
+  private readonly pressedActions = new Set<string>();
+
   private isRunning: boolean = false;
   private timer: GameTimer = new GameTimer();
   private isPointerDown: boolean = false;
@@ -428,30 +431,47 @@ export class GameEngine {
       this.lastMouseX = e.clientX;
       this.lastMouseY = e.clientY;
 
-      const factorX = this.invertLookX ? 0.0075 : -0.0075;
-      this.player.rotateCamera(dx * factorX, dy * 0.0075);
+      // 0.0075 rad/px turned a short drag into most of a half-turn.
+      const look = 0.0032;
+      const factorX = this.invertLookX ? look : -look;
+      this.player.rotateCamera(dx * factorX, dy * look);
     });
 
-    // Touch controls for camera swipe
-    let touchStartX = 0;
-    let touchStartY = 0;
-    el.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 1) {
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
+    // One canvas finger looks. Other fingers can hold HUD controls at the same time.
+    el.style.touchAction = 'none';
+    let lookTouchId: number | null = null;
+    let lookX = 0;
+    let lookY = 0;
+    const claimLookTouch = (e: TouchEvent) => {
+      if (lookTouchId !== null) return;
+      const touch = e.changedTouches[0];
+      if (!touch) return;
+      lookTouchId = touch.identifier;
+      lookX = touch.clientX;
+      lookY = touch.clientY;
+    };
+    const moveLookTouch = (e: TouchEvent) => {
+      if (lookTouchId === null) return;
+      for (const touch of Array.from(e.changedTouches)) {
+        if (touch.identifier !== lookTouchId) continue;
+        const dx = touch.clientX - lookX;
+        const dy = touch.clientY - lookY;
+        lookX = touch.clientX;
+        lookY = touch.clientY;
+        const look = 0.004;
+        const factorX = this.invertLookX ? look : -look;
+        this.player.rotateCamera(dx * factorX, dy * look);
       }
-    }, { passive: true });
-
-    el.addEventListener('touchmove', (e) => {
-      if (e.touches.length === 1) {
-        const dx = e.touches[0].clientX - touchStartX;
-        const dy = e.touches[0].clientY - touchStartY;
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
-        const factorX = this.invertLookX ? 0.0085 : -0.0085;
-        this.player.rotateCamera(dx * factorX, dy * 0.0085);
+    };
+    const releaseLookTouch = (e: TouchEvent) => {
+      for (const touch of Array.from(e.changedTouches)) {
+        if (touch.identifier === lookTouchId) lookTouchId = null;
       }
-    }, { passive: true });
+    };
+    el.addEventListener('touchstart', claimLookTouch, { passive: true });
+    el.addEventListener('touchmove', moveLookTouch, { passive: true });
+    el.addEventListener('touchend', releaseLookTouch, { passive: true });
+    el.addEventListener('touchcancel', releaseLookTouch, { passive: true });
 
     // Zoom on wheel
     el.addEventListener('wheel', (e) => {
@@ -486,10 +506,8 @@ export class GameEngine {
           this.keys.jump = true;
           break;
         case 'KeyE':
-          this.interact();
-          break;
         case 'KeyR':
-          this.toggleRemember();
+          this.triggerEdgeAction(e);
           break;
       }
     });
@@ -519,8 +537,24 @@ export class GameEngine {
         case 'Space':
           this.keys.jump = false;
           break;
+        case 'KeyE':
+        case 'KeyR':
+          this.pressedActions.delete(e.code);
+          break;
       }
     });
+
+    window.addEventListener('blur', () => {
+      this.pressedActions.clear();
+    });
+  }
+
+  /** Fire E/R once per physical press. Repeats while held are ignored until keyup. */
+  private triggerEdgeAction(e: KeyboardEvent) {
+    if (e.repeat || this.pressedActions.has(e.code)) return;
+    this.pressedActions.add(e.code);
+    if (e.code === 'KeyE') this.interact();
+    else if (e.code === 'KeyR') this.toggleRemember();
   }
 
   public jump() {

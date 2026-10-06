@@ -425,20 +425,28 @@ export class WorldBuilder {
     // Gorge is around z = -18. The player starts around z = 0 or z = -5.
     // Broken bridge span: from z = -11 down to z = -25 at x = 0.
     
-    // Broken stone pillars in present
+    // Abutments stand on either side of the deck so the center span stays walkable.
     const pillarMat = new THREE.MeshStandardMaterial({
       color: 0x5a3e36,
       roughness: 0.8,
       flatShading: true
     });
-
-    const southPillar = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 3), pillarMat);
-    southPillar.position.set(0, 1.5, -11);
-    this.scene.add(southPillar);
-
-    const northPillar = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 3), pillarMat);
-    northPillar.position.set(0, 1.5, -25);
-    this.scene.add(northPillar);
+    const abutmentGeo = new THREE.BoxGeometry(1.8, 4.2, 2.4);
+    const abutments: Array<[number, number]> = [
+      [-3.15, -11],
+      [3.15, -11],
+      [-3.15, -25],
+      [3.15, -25],
+    ];
+    abutments.forEach(([x, z]) => {
+      const ground = getTerrainHeightAt(x, z);
+      const abutment = new THREE.Mesh(abutmentGeo, pillarMat);
+      abutment.position.set(x, ground + 2.1, z);
+      abutment.castShadow = true;
+      abutment.receiveShadow = true;
+      this.scene.add(abutment);
+      this.colliders.push({ x, z, radius: 0.95, height: 4.2 });
+    });
 
     // Ancient Rune Anchor Stone near the south pillar (interactable)
     const runeStoneGeo = new THREE.CylinderGeometry(0.8, 1.1, 2.2, 6);
@@ -552,9 +560,7 @@ export class WorldBuilder {
       label: 'Channel Echo to Restore Bridge',
       mesh: runeStone,
     });
-    this.colliders.push({ x: -2.8, z: -10.5, radius: 1.2, height: 2.8 });
-    this.colliders.push({ x: 0, z: -11, radius: 2.2, height: 4.5, isBridge: true });
-    this.colliders.push({ x: 0, z: -25, radius: 2.2, height: 4.5, isBridge: true });
+    this.colliders.push({ x: -2.8, z: -10.5, radius: 1.05, height: 2.8 });
   }
 
   private buildForgottenRiverPuzzle() {
@@ -1022,11 +1028,6 @@ export class WorldBuilder {
   public setBridgeSolved(solved: boolean) {
     if (this.physicalBridge) {
       this.physicalBridge.visible = solved;
-    }
-    // Add collision pass-through for the bridge span
-    if (solved) {
-      // Remove blocking or add walkable bounds
-      this.colliders.push({ x: 0, z: -18, radius: 2.0, isBridge: true });
     }
   }
 
