@@ -6,7 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GameEngine } from './game/GameEngine';
 import { InteractiveObject } from './game/WorldBuilder';
-import { Difficulty, GameView, INITIAL_MEMORIES, MemoryFragment, StorytellerDialogue } from './types/game';
+import { Difficulty, GameView, INITIAL_MEMORIES, JourneySnapshot, MemoryFragment, StorytellerDialogue } from './types/game';
 import { soundEngine } from './audio/SoundEngine';
 import { StartScreen } from './components/StartScreen';
 import { GameHUD } from './components/GameHUD';
@@ -41,6 +41,21 @@ export default function App() {
   // Progression & Timer
   const [timeElapsed, setTimeElapsed] = useState<number>(0);
   const [bannerNotice, setBannerNotice] = useState<string | null>(null);
+  const [noticeToken, setNoticeToken] = useState(0);
+  const showNotice = (message: string) => {
+    setBannerNotice(message);
+    setNoticeToken((n) => n + 1);
+  };
+  const [journey, setJourney] = useState<JourneySnapshot>({
+    storyHeard: false,
+    bridgeSolved: false,
+    riverSolved: false,
+    shrineSolved: false,
+    witnessedBridge: false,
+    witnessedRiver: false,
+    witnessedShrine: false,
+    puzzlesSolved: 0,
+  });
 
   // Timer effect while playing
   useEffect(() => {
@@ -56,7 +71,7 @@ export default function App() {
     if (!bannerNotice) return;
     const t = window.setTimeout(() => setBannerNotice(null), 3800);
     return () => clearTimeout(t);
-  }, [bannerNotice]);
+  }, [bannerNotice, noticeToken]);
 
   // Initialize 3D Engine on mount
   useEffect(() => {
@@ -65,7 +80,7 @@ export default function App() {
     const engine = new GameEngine(containerRef.current, difficulty, {
       onMemoryCollected: (memory, totalCollected) => {
         setMemories([...engine.memories]);
-        setBannerNotice(`Ancestral Echo Restored: ${memory.name}! (${totalCollected}/4)`);
+        showNotice(`Ancestral Echo Restored: ${memory.name}! (${totalCollected}/4)`);
       },
       onRememberStateChange: (active, remaining, max) => {
         setIsRememberActive(active);
@@ -73,7 +88,7 @@ export default function App() {
         setRememberMaxDuration(max);
       },
       onPuzzleSolved: (puzzleName) => {
-        setBannerNotice(`Sacred Harmony Achieved: ${puzzleName}!`);
+        showNotice(`Sacred Harmony Achieved: ${puzzleName}!`);
       },
       onInteractiveChanged: (interactive) => {
         setNearestInteractive(interactive);
@@ -86,6 +101,12 @@ export default function App() {
       },
       onGameWon: () => {
         setGameView('win');
+      },
+      onNotice: (message) => {
+        showNotice(message);
+      },
+      onProgress: (next) => {
+        setJourney(next);
       },
     });
 
@@ -206,6 +227,7 @@ export default function App() {
           rememberTimeRemaining={rememberTimeRemaining}
           rememberMaxDuration={rememberMaxDuration}
           nearestInteractive={nearestInteractive}
+          journey={journey}
           onTriggerRemember={handleTriggerRemember}
           onTriggerInteract={handleTriggerInteract}
           onTriggerJump={handleTriggerJump}
@@ -271,6 +293,7 @@ export default function App() {
         <WinScreen
           difficulty={difficulty}
           memories={memories}
+          puzzlesSolved={journey.puzzlesSolved}
           timeElapsedSeconds={timeElapsed}
           onPlayAgain={handlePlayAgain}
           onReturnToMainMenu={handleReturnToMainMenu}

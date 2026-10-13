@@ -67,6 +67,11 @@ export class WorldBuilder {
   public ancestralEchoesGroup!: THREE.Group;
   public firefliesMesh!: THREE.Points;
   public rememberParticlesMesh!: THREE.Points;
+  /** Cyan marks that show the solved wheel orientation. Visible only while REMEMBER is active. */
+  public riverGhostMarks: THREE.Object3D[] = [];
+  /** Bead stacks (1, 2, 3) that show totem order. Visible only while REMEMBER is active. */
+  public shrineOrderMarks: THREE.Object3D[] = [];
+  private guideBeacon!: THREE.Group;
 
   // Collision obstacles (cylinders and boxes)
   public colliders: {
@@ -95,6 +100,7 @@ export class WorldBuilder {
     this.buildMemoryFragments();
     this.buildAncestralEchoes();
     this.buildAtmosphericParticles();
+    this.buildGuideBeacon();
   }
 
   private setupSkyAndFog() {
@@ -452,7 +458,9 @@ export class WorldBuilder {
     const runeStoneGeo = new THREE.CylinderGeometry(0.8, 1.1, 2.2, 6);
     const runeStoneMat = new THREE.MeshStandardMaterial({
       color: 0x452e25,
-      roughness: 0.7,
+      roughness: 0.55,
+      emissive: 0xf59e0b,
+      emissiveIntensity: 0.22,
       flatShading: true
     });
     const runeStone = new THREE.Mesh(runeStoneGeo, runeStoneMat);
@@ -593,6 +601,8 @@ export class WorldBuilder {
     const wheelIcons = ['☀️', '🌊', '🌱'];
     const wheelColors = [0xf59e0b, 0x06b6d4, 0x10b981];
 
+    // Solved orientation, in clicks: Sun once, Wave twice, Sprout left at rest.
+    const solvedWheelStates = [1, 2, 0];
     [-2.6, 0, 2.6].forEach((xOffset, idx) => {
       const wheelGroup = new THREE.Group();
       wheelGroup.position.set(xOffset, 2.8, 1.6);
@@ -613,6 +623,24 @@ export class WorldBuilder {
 
       gateGroup.add(wheelGroup);
       this.riverWheels.push(wheelGroup);
+
+      // A pale pip travels with the wheel. The cyan ring stays fixed at the remembered angle.
+      const pip = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xf8e7c0 })
+      );
+      pip.position.set(0.78, 0, 0);
+      wheelGroup.add(pip);
+
+      const angle = solvedWheelStates[idx] * ((Math.PI * 2) / 3);
+      const ghost = new THREE.Mesh(
+        new THREE.TorusGeometry(0.16, 0.04, 6, 14),
+        new THREE.MeshBasicMaterial({ color: 0x67e8f9, transparent: true, opacity: 0.95 })
+      );
+      ghost.position.set(xOffset + Math.cos(angle) * 0.78, 2.8 + Math.sin(angle) * 0.78, 1.6);
+      ghost.visible = false;
+      gateGroup.add(ghost);
+      this.riverGhostMarks.push(ghost);
 
       // Interactive control for each wheel
       this.interactives.push({
@@ -677,13 +705,27 @@ export class WorldBuilder {
     const shrineGroup = new THREE.Group();
     shrineGroup.position.set(-40, shrineGroundY, 20);
 
-    // Ancient circular stone base - deep solid foundation embedded in hill
-    const baseGeo = new THREE.CylinderGeometry(11, 13, 2.5, 16);
-    const baseMat = new THREE.MeshStandardMaterial({ color: 0x3d291e, roughness: 0.9, flatShading: true });
+    // Stone pavement that follows the mound. A raised cylinder used to float above the
+    // hillside, so the player walked through the mesh and stopped on the altar.
+    const baseGeo = new THREE.CircleGeometry(11, 28);
+    baseGeo.rotateX(-Math.PI / 2);
+    const basePos = baseGeo.attributes.position;
+    for (let i = 0; i < basePos.count; i++) {
+      const worldX = -40 + basePos.getX(i);
+      const worldZ = 20 + basePos.getZ(i);
+      basePos.setY(i, getTerrainHeightAt(worldX, worldZ) - shrineGroundY + 0.12);
+    }
+    baseGeo.computeVertexNormals();
+    const baseMat = new THREE.MeshStandardMaterial({
+      color: 0x3d291e,
+      roughness: 0.9,
+      flatShading: true,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
     const base = new THREE.Mesh(baseGeo, baseMat);
-    base.position.y = 0.8;
     base.receiveShadow = true;
-    base.castShadow = true;
     shrineGroup.add(base);
 
     // 3 Totem Monoliths:
@@ -697,8 +739,12 @@ export class WorldBuilder {
     ];
 
     totemConfigs.forEach((cfg, idx) => {
+      const worldX = -40 + cfg.pos.x;
+      const worldZ = 20 + cfg.pos.z;
+      const localGround = getTerrainHeightAt(worldX, worldZ) - shrineGroundY;
       const totem = new THREE.Group();
-      totem.position.copy(cfg.pos);
+      // Pillar is 4.5 tall and centered on the group, so this plants its base in the mound.
+      totem.position.set(cfg.pos.x, localGround + 2.05, cfg.pos.z);
 
       // Carved rectangular monolith
       const pillarGeo = new THREE.BoxGeometry(1.4, 4.5, 1.4);
@@ -724,6 +770,20 @@ export class WorldBuilder {
       symbol.position.set(0, 0.8, 0.72);
       totem.add(symbol);
 
+      // One, two, or three beads: the order is visible only in the past.
+      const order = new THREE.Group();
+      for (let n = 0; n < idx + 1; n++) {
+        const bead = new THREE.Mesh(
+          new THREE.SphereGeometry(0.11, 8, 8),
+          new THREE.MeshBasicMaterial({ color: cfg.color })
+        );
+        bead.position.set(0, 2.55 + n * 0.3, 0);
+        order.add(bead);
+      }
+      order.visible = false;
+      totem.add(order);
+      this.shrineOrderMarks.push(order);
+
       shrineGroup.add(totem);
       this.shrineTotems.push(totem);
 
@@ -731,26 +791,46 @@ export class WorldBuilder {
       this.interactives.push({
         id: `shrine_totem_${idx}`,
         type: 'shrine_totem',
-        position: new THREE.Vector3(-40 + cfg.pos.x, shrineGroundY + 3.5, 20 + cfg.pos.z),
-        radius: 3.2,
+        position: new THREE.Vector3(worldX, getTerrainHeightAt(worldX, worldZ) + 1.5, worldZ),
+        radius: 2.6,
         label: `Attune with ${cfg.name}`,
         data: { totemIndex: idx },
         mesh: totem,
       });
 
-      this.colliders.push({ x: -40 + cfg.pos.x, z: 20 + cfg.pos.z, radius: 1.3, height: 5.5 });
+      // Matches the 1.4 monolith. Tall enough that the pillar stays solid from the mound.
+      this.colliders.push({ x: worldX, z: worldZ, radius: 0.95, height: 4.6 });
     });
 
-    // Central altar flame bowl
+    // Central altar flame bowl, seated on the mound rather than on a raised plinth.
     const bowlGeo = new THREE.CylinderGeometry(1.8, 1.2, 1.5, 8);
     const bowl = new THREE.Mesh(bowlGeo, baseMat);
-    bowl.position.set(0, 2.0, 0);
+    bowl.position.set(0, 0.62, 0);
     bowl.castShadow = true;
     bowl.receiveShadow = true;
     shrineGroup.add(bowl);
-    this.colliders.push({ x: -40, z: 20, radius: 1.8, height: 2.2 });
+    this.colliders.push({ x: -40, z: 20, radius: 1.65, height: 1.55 });
 
     this.scene.add(shrineGroup);
+  }
+
+  private buildGuideBeacon() {
+    this.guideBeacon = new THREE.Group();
+    this.guideBeacon.visible = false;
+    const shaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07, 0.12, 6.5, 6),
+      new THREE.MeshBasicMaterial({ color: 0xfde68a, transparent: true, opacity: 0.4 })
+    );
+    shaft.position.y = 3.4;
+    this.guideBeacon.add(shaft);
+    const mote = new THREE.Mesh(
+      new THREE.SphereGeometry(0.26, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xfef3c7 })
+    );
+    mote.position.y = 6.8;
+    mote.name = 'guideMote';
+    this.guideBeacon.add(mote);
+    this.scene.add(this.guideBeacon);
   }
 
   private buildStorytellerNPC() {
@@ -993,6 +1073,11 @@ export class WorldBuilder {
     if (this.riverWater.visible) {
       this.riverWater.position.y = -1.6 + Math.sin(time * 2.5) * 0.05;
     }
+
+    if (this.guideBeacon?.visible) {
+      const mote = this.guideBeacon.getObjectByName('guideMote');
+      if (mote) mote.position.y = 6.8 + Math.sin(time * 2.2) * 0.25;
+    }
   }
 
   /** Switches visual state between PRESENT and REMEMBER */
@@ -1016,12 +1101,33 @@ export class WorldBuilder {
     }
 
     // Make shrine symbols illuminate intensely during REMEMBER
-    this.shrineTotems.forEach((totem, i) => {
+    this.shrineTotems.forEach((totem) => {
       const symbol = totem.children[1] as THREE.Mesh;
       if (symbol && symbol.material instanceof THREE.MeshBasicMaterial) {
-        symbol.material.opacity = active ? 0.95 : 0.4;
+        symbol.material.opacity = active ? 1 : 0.45;
       }
     });
+
+    this.riverGhostMarks.forEach((mark) => {
+      mark.visible = active;
+    });
+    this.shrineOrderMarks.forEach((mark) => {
+      mark.visible = active;
+    });
+
+    const fog = this.scene.fog as THREE.FogExp2 | null;
+    if (fog) fog.color.setHex(active ? 0x7eb0c0 : 0xd4773d);
+  }
+
+  /** Kidogo guidance wisp. Pass null to hide it. */
+  public setGuideTarget(x: number | null, z: number | null) {
+    if (!this.guideBeacon) return;
+    if (x === null || z === null) {
+      this.guideBeacon.visible = false;
+      return;
+    }
+    this.guideBeacon.position.set(x, getTerrainHeightAt(x, z), z);
+    this.guideBeacon.visible = true;
   }
 
   /** Solves the bridge puzzle: physical bridge appears permanently */

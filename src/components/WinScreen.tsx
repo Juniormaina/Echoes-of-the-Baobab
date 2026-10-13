@@ -7,6 +7,7 @@ import { soundEngine } from '../audio/SoundEngine';
 interface WinScreenProps {
   difficulty: Difficulty;
   memories: MemoryFragment[];
+  puzzlesSolved: number;
   timeElapsedSeconds: number;
   onPlayAgain: () => void;
   onReturnToMainMenu: () => void;
@@ -15,6 +16,7 @@ interface WinScreenProps {
 export const WinScreen: React.FC<WinScreenProps> = ({
   difficulty,
   memories,
+  puzzlesSolved,
   timeElapsedSeconds,
   onPlayAgain,
   onReturnToMainMenu,
@@ -76,7 +78,7 @@ export const WinScreen: React.FC<WinScreenProps> = ({
           <div className="p-3 rounded-2xl bg-[#1e0d06]/80 border border-amber-900/50 flex flex-col items-center">
             <Layers className="w-4 h-4 text-amber-400 mb-1" />
             <span className="text-[10px] uppercase font-mono text-amber-300/60">Puzzles</span>
-            <span className="font-mono text-sm font-bold text-amber-100">3 / 3</span>
+            <span className="font-mono text-sm font-bold text-amber-100">{puzzlesSolved} / 3</span>
           </div>
 
           <div className="p-3 rounded-2xl bg-[#1e0d06]/80 border border-amber-900/50 flex flex-col items-center">

@@ -16,7 +16,7 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     id: 'kidogo',
     name: 'Kidogo',
     subtitle: 'Gentle / Easy',
-    description: 'Generous REMEMBER time (14s), luminous guide wisps, and forgiving puzzle timing. Ideal for contemplative exploration.',
+    description: 'Generous REMEMBER time (14s) and a faint wisp toward the next step.',
     rememberDuration: 14,
     rememberCooldown: 2,
     showHintBeacons: true,
@@ -26,7 +26,7 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     id: 'safari',
     name: 'Safari',
     subtitle: 'Balanced / Normal',
-    description: 'The intended spiritual journey (8s REMEMBER). Subtle environmental cues and balanced puzzles across the savanna.',
+    description: 'The intended journey (8s REMEMBER). Clues appear when you remember, and the path is yours to find.',
     rememberDuration: 8,
     rememberCooldown: 3,
     showHintBeacons: false,
@@ -36,7 +36,7 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
     id: 'ancestor',
     name: 'Ancestor',
     subtitle: 'Sacred / Hard',
-    description: 'Fleet memory duration (4.5s), ethereal faint glyphs, and swift puzzle sequences. For true masters of the echoes.',
+    description: 'A short memory (4.5s) and a longer wait before you can look again.',
     rememberDuration: 4.5,
     rememberCooldown: 4,
     showHintBeacons: false,
@@ -103,6 +103,18 @@ export const INITIAL_MEMORIES: MemoryFragment[] = [
     scenePrompt: 'The colossal Baobab tree glowing with radiant golden leaves as fireflies ascend.',
   },
 ];
+
+/** What the player has learned and finished. The HUD and win screen read this. */
+export interface JourneySnapshot {
+  storyHeard: boolean;
+  bridgeSolved: boolean;
+  riverSolved: boolean;
+  shrineSolved: boolean;
+  witnessedBridge: boolean;
+  witnessedRiver: boolean;
+  witnessedShrine: boolean;
+  puzzlesSolved: number;
+}
 
 export interface PuzzleState {
   bridgeActivated: boolean;

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { InteractiveObject } from '../game/WorldBuilder';
-import { Difficulty, DIFFICULTY_CONFIGS, MemoryFragment } from '../types/game';
+import { Difficulty, DIFFICULTY_CONFIGS, JourneySnapshot, MemoryFragment } from '../types/game';
 import { Eye, Hand, Sparkles, BookOpen, Settings, Volume2, VolumeX, Compass } from 'lucide-react';
 import { soundEngine } from '../audio/SoundEngine';
 
@@ -34,6 +34,7 @@ interface GameHUDProps {
   rememberTimeRemaining: number;
   rememberMaxDuration: number;
   nearestInteractive: InteractiveObject | null;
+  journey: JourneySnapshot;
   onTriggerRemember: () => void;
   onTriggerInteract: () => void;
   onTriggerJump: () => void;
@@ -53,6 +54,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   rememberTimeRemaining,
   rememberMaxDuration,
   nearestInteractive,
+  journey,
   onTriggerRemember,
   onTriggerInteract,
   onTriggerJump,
@@ -125,20 +127,39 @@ export const GameHUD: React.FC<GameHUDProps> = ({
     onLostPointerCapture: () => clearDir(dir),
   });
   const collectedCount = memories.filter((m) => m.unlocked).length;
+  const hasMemory = (id: string) => memories.some((m) => m.id === id && m.unlocked);
+  const echoesReady = hasMemory('memory-song') && hasMemory('memory-rain') && hasMemory('memory-community');
   const currentDiffConfig = DIFFICULTY_CONFIGS[difficulty];
 
-  // Dynamic environmental objective cue based on progress
-  let currentObjective = 'Explore the savanna and speak with Baba Olatunji';
-  if (collectedCount === 0) {
-    currentObjective = 'Cross the Forgotten Bridge using REMEMBER [R]';
-  } else if (collectedCount === 1) {
-    currentObjective = 'Solve the Watergate alignment at the dry riverbed';
-  } else if (collectedCount === 2) {
-    currentObjective = 'Ascend to the western hill and attune the Memory Shrine';
-  } else if (collectedCount === 3) {
-    currentObjective = 'Approach the Grandfather Baobab to restore the heartwood';
+  let currentObjective = 'Speak with Baba Olatunji beside the path';
+  if (!journey.storyHeard) {
+    currentObjective = 'Speak with Baba Olatunji beside the path';
+  } else if (!journey.bridgeSolved) {
+    currentObjective = echoesReady
+      ? 'The heartwood still needs the bridge'
+      : journey.witnessedBridge
+        ? 'Touch the sun-rune to restore the deck'
+        : 'REMEMBER at the gorge to see the lost bridge';
+  } else if (!hasMemory('memory-song')) {
+    currentObjective = 'Cross the deck and gather the Memory of Song';
+  } else if (!journey.riverSolved) {
+    currentObjective = echoesReady
+      ? 'The heartwood still needs the river rite'
+      : journey.witnessedRiver
+        ? 'Match the wheels to the marks you remembered'
+        : 'REMEMBER at the watergate to see the wheel marks';
+  } else if (!hasMemory('memory-rain')) {
+    currentObjective = 'Cross the stones and gather the Memory of Rain';
+  } else if (!journey.shrineSolved) {
+    currentObjective = echoesReady
+      ? 'The heartwood still needs the shrine rite'
+      : journey.witnessedShrine
+        ? 'Attune the totems in the remembered order'
+        : 'REMEMBER at the shrine to see the totem order';
+  } else if (!hasMemory('memory-community')) {
+    currentObjective = 'Gather the Memory of Community at the shrine';
   } else {
-    currentObjective = 'The ancient memories are restored! The Baobab awakens';
+    currentObjective = 'Offer the echoes to the Baobab heartwood';
   }
 
   // REMEMBER radial fill percentage
@@ -239,7 +260,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
               soundEngine.playButtonClick();
               onOpenSettings();
             }}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#261109]/80 hover:bg-[#391a0e]/90 border border-amber-800/60 text-amber-300 hover:text-amber-100 transition-colors shadow-md backdrop-blur-xs cursor-pointer sm:h-auto sm:w-auto sm:p-2.5"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#261109]/80 hover:bg-[#391a0e]/90 border border-amber-800/60 text-amber-300 hover:text-amber-100 transition-colors shadow-md backdrop-blur-xs cursor-pointer"
             title="Settings & Guide"
           >
             <Settings className="w-4 h-4" />
@@ -247,7 +268,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
           <button
             onClick={onToggleMute}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#261109]/80 hover:bg-[#391a0e]/90 border border-amber-800/60 text-amber-300 hover:text-amber-100 transition-colors shadow-md backdrop-blur-xs cursor-pointer sm:h-auto sm:w-auto sm:p-2.5"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#261109]/80 hover:bg-[#391a0e]/90 border border-amber-800/60 text-amber-300 hover:text-amber-100 transition-colors shadow-md backdrop-blur-xs cursor-pointer"
             title={isMuted ? 'Unmute' : 'Mute'}
           >
             {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}

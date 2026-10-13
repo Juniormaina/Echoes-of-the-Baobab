@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { WorldBuilder, InteractiveObject } from './WorldBuilder';
 import { PlayerController, KeyState } from './PlayerController';
-import { Difficulty, DIFFICULTY_CONFIGS, MemoryFragment, INITIAL_MEMORIES, PuzzleState, StorytellerDialogue } from '../types/game';
+import { Difficulty, DIFFICULTY_CONFIGS, JourneySnapshot, MemoryFragment, INITIAL_MEMORIES, PuzzleState, StorytellerDialogue } from '../types/game';
 import { soundEngine } from '../audio/SoundEngine';
 
 class GameTimer {
@@ -33,6 +33,8 @@ export interface GameEngineCallbacks {
   onDialogueOpen: (dialogue: StorytellerDialogue) => void;
   onPlayerFell: () => void;
   onGameWon: () => void;
+  onNotice: (message: string) => void;
+  onProgress: (journey: JourneySnapshot) => void;
 }
 
 export class GameEngine {
@@ -75,6 +77,11 @@ export class GameEngine {
     run: false,
     jump: false,
   };
+
+  /** The player has looked at this puzzle with REMEMBER. The present will not answer before that. */
+  private readonly witnessed = { bridge: false, river: false, shrine: false };
+  private storyHeard = false;
+  private riverNeedsMemoryTold = false;
 
   /** Key codes that already fired their action for the current physical press. */
   private readonly pressedActions = new Set<string>();
@@ -131,6 +138,8 @@ export class GameEngine {
     this.isRunning = true;
     this.timer.start();
     soundEngine.startMusic();
+    this.emitProgress();
+    this.refreshGuide();
     this.animate();
   }
 
@@ -141,6 +150,7 @@ export class GameEngine {
 
   public setDifficulty(diff: Difficulty) {
     this.difficulty = diff;
+    this.refreshGuide();
   }
 
   private animate = () => {
@@ -158,6 +168,8 @@ export class GameEngine {
 
       if (this.rememberTimer <= 0) {
         this.deactivateRemember();
+      } else {
+        this.markWitness();
       }
     } else {
       if (this.rememberCooldownTimer > 0) {
@@ -232,6 +244,7 @@ export class GameEngine {
   public interact() {
     const target = this.player.nearestInteractive;
     if (!target) return;
+    this.markWitness();
 
     switch (target.type) {
       case 'bridge_rune':
@@ -255,16 +268,92 @@ export class GameEngine {
     }
   }
 
+  /** While REMEMBER is active, standing at a puzzle teaches its clue. */
+  private markWitness() {
+    if (!this.isRememberActive) return;
+    const p = this.player.position;
+    const near = (x: number, z: number, radius: number) => Math.hypot(p.x - x, p.z - z) < radius;
+    let changed = false;
+    if (!this.witnessed.bridge && near(-2.8, -10.5, 12)) {
+      this.witnessed.bridge = true;
+      changed = true;
+    }
+    if (!this.witnessed.river && near(30, -24, 12)) {
+      this.witnessed.river = true;
+      this.riverNeedsMemoryTold = false;
+      changed = true;
+    }
+    if (!this.witnessed.shrine && near(-40, 20, 14)) {
+      this.witnessed.shrine = true;
+      changed = true;
+    }
+    if (!changed) return;
+    this.tryFinishRiver();
+    this.emitProgress();
+  }
+
+  private emitProgress() {
+    const solved = [
+      this.puzzleState.bridgeRuneSolved,
+      this.puzzleState.riverGateSolved,
+      this.puzzleState.shrineSolved,
+    ].filter(Boolean).length;
+    this.callbacks.onProgress({
+      storyHeard: this.storyHeard,
+      bridgeSolved: this.puzzleState.bridgeRuneSolved,
+      riverSolved: this.puzzleState.riverGateSolved,
+      shrineSolved: this.puzzleState.shrineSolved,
+      witnessedBridge: this.witnessed.bridge,
+      witnessedRiver: this.witnessed.river,
+      witnessedShrine: this.witnessed.shrine,
+      puzzlesSolved: solved,
+    });
+    this.refreshGuide();
+  }
+
+  /** A single wisp on Kidogo, pointing at the next unfinished step. */
+  private refreshGuide() {
+    if (!DIFFICULTY_CONFIGS[this.difficulty].showHintBeacons) {
+      this.worldBuilder.setGuideTarget(null, null);
+      return;
+    }
+    const target = this.guidePoint();
+    this.worldBuilder.setGuideTarget(target ? target.x : null, target ? target.z : null);
+  }
+
+  private guidePoint(): { x: number; z: number } | null {
+    const has = (id: string) => this.memories.some((m) => m.id === id && m.unlocked);
+    if (!this.storyHeard) return { x: -8, z: 8 };
+    if (!this.puzzleState.bridgeRuneSolved) return { x: -2.8, z: -10.5 };
+    if (!has('memory-song')) return { x: 0, z: -32 };
+    if (!this.puzzleState.riverGateSolved) return { x: 30, z: -24 };
+    if (!has('memory-rain')) return { x: 40, z: 10 };
+    if (!this.puzzleState.shrineSolved) return { x: -40, z: 20 };
+    if (!has('memory-community')) return { x: -40, z: 20 };
+    if (!this.puzzleState.baobabRestored) return { x: 0, z: 39 };
+    return null;
+  }
+
   // --- Puzzle 1: The Forgotten Bridge ---
   private handleBridgeRuneInteraction() {
     if (this.puzzleState.bridgeRuneSolved) return;
+
+    if (!this.witnessed.bridge) {
+      this.callbacks.onDialogueOpen({
+        speaker: 'Spirit of the Span',
+        title: 'The rune is silent',
+        text: 'The present has forgotten the crossing. Stand at the gorge and REMEMBER. The lost deck shows itself in the past. Only then will the rune answer.',
+        proverb: '“The eye must see the old path before the hand can lay it again.”',
+      });
+      return;
+    }
 
     soundEngine.playPuzzleSolve();
     this.puzzleState.bridgeRuneSolved = true;
     this.worldBuilder.setBridgeSolved(true);
     this.currentCheckpoint.set(0, 1.2, -11);
-
     this.callbacks.onPuzzleSolved('The Forgotten Bridge Restored');
+    this.emitProgress();
   }
 
   // --- Puzzle 2: The Forgotten River ---
@@ -283,41 +372,61 @@ export class GameEngine {
     }
 
     soundEngine.playButtonClick();
+    this.tryFinishRiver();
+  }
 
-    // Past memory alignment solution is: [1, 2, 0] (Wave, Sprout, Sun)
+  private tryFinishRiver() {
+    if (this.puzzleState.riverGateSolved) return;
     const [w0, w1, w2] = this.puzzleState.riverWheelStates;
-    if (w0 === 1 && w1 === 2 && w2 === 0) {
-      this.puzzleState.riverGateSolved = true;
-      this.worldBuilder.setRiverSolved(true);
-      soundEngine.playWaterRush();
-      this.currentCheckpoint.set(30, 0, 0);
-      this.callbacks.onPuzzleSolved('The Forgotten River Awoken');
+    if (w0 !== 1 || w1 !== 2 || w2 !== 0) return;
+    if (!this.witnessed.river) {
+      if (!this.riverNeedsMemoryTold) {
+        this.riverNeedsMemoryTold = true;
+        this.callbacks.onNotice('The wheels turn, but the gate is waiting for a memory of their alignment.');
+      }
+      return;
     }
+
+    this.puzzleState.riverGateSolved = true;
+    this.worldBuilder.setRiverSolved(true);
+    soundEngine.playWaterRush();
+    this.currentCheckpoint.set(30, 0, 0);
+    this.callbacks.onPuzzleSolved('The Forgotten River Awoken');
+    this.emitProgress();
   }
 
   // --- Puzzle 3: The Memory Shrine ---
   private handleShrineTotemInteraction(totemIndex: number) {
     if (this.puzzleState.shrineSolved || totemIndex === undefined) return;
 
+    if (!this.witnessed.shrine) {
+      soundEngine.playButtonClick();
+      this.callbacks.onNotice('These stones will not take a name until you REMEMBER their order.');
+      return;
+    }
+
     const currentSequence = [...this.puzzleState.shrineSequence, totemIndex];
     soundEngine.playShrineTone(totemIndex);
 
     // Target sequence: 0 -> 1 -> 2
     const target = [0, 1, 2];
+    const names = ['Hornbill', 'Elephant', 'Sun Leopard'];
     const isStepCorrect = target[currentSequence.length - 1] === totemIndex;
 
     if (!isStepCorrect) {
-      // Gentle error reset
       soundEngine.playGentleError();
       this.puzzleState.shrineSequence = [];
+      this.callbacks.onNotice('The shrine falls quiet. Begin again with the Hornbill.');
     } else {
       this.puzzleState.shrineSequence = currentSequence;
       if (this.puzzleState.shrineSequence.length === target.length) {
-        // Solved!
         this.puzzleState.shrineSolved = true;
         soundEngine.playPuzzleSolve();
         this.currentCheckpoint.set(-38, 2.5, 18);
         this.callbacks.onPuzzleSolved('The Memory Shrine Reconciled');
+        this.emitProgress();
+      } else {
+        this.callbacks.onNotice(`The ${names[totemIndex]} answers.`);
       }
     }
   }
@@ -344,6 +453,7 @@ export class GameEngine {
     soundEngine.setMemoryLevel(totalCollected);
 
     this.callbacks.onMemoryCollected(memory, totalCollected);
+    this.emitProgress();
   }
 
   // --- Storyteller Griot Dialogue ---
@@ -367,27 +477,69 @@ export class GameEngine {
         proverb: '“The river that forgets its source dries up in the sun.”',
       };
     } else {
-      dialogue = {
-        speaker: 'Baba Olatunji',
-        title: 'The Griot of the Savanna',
-        text: 'The ancestors smile upon the savanna. The ancient shrines hum with light once more! Approach the heartwood of the Great Baobab and offer the echoes back to the grandfather of trees.',
-        proverb: '“When the roots are deep, there is no reason to fear the wind.”',
-      };
+      const missing = this.unfinishedRites();
+      dialogue = missing.length > 0
+        ? {
+            speaker: 'Baba Olatunji',
+            title: 'The Griot of the Savanna',
+            text: `You carry the echoes, but ${this.listRites(missing)} still sleep. Remember what the past shows you, and finish those rites. The heartwood will not wake before the land is whole.`,
+            proverb: '“When the roots are deep, there is no reason to fear the wind.”',
+          }
+        : {
+            speaker: 'Baba Olatunji',
+            title: 'The Griot of the Savanna',
+            text: 'The ancestors smile upon the savanna. The ancient shrines hum with light once more! Approach the heartwood of the Great Baobab and offer the echoes back to the grandfather of trees.',
+            proverb: '“When the roots are deep, there is no reason to fear the wind.”',
+          };
     }
 
     this.callbacks.onDialogueOpen(dialogue);
+    if (!this.storyHeard) {
+      this.storyHeard = true;
+      this.emitProgress();
+    }
+  }
+
+  /** Field echoes the heartwood asks for. Roots is granted by the awakening itself. */
+  private gatheredFieldEchoes(): number {
+    return this.memories.filter((m) => m.unlocked && m.id !== 'memory-roots').length;
+  }
+
+  /** Puzzles that must be reconciled before the heartwood can wake. */
+  private unfinishedRites(): string[] {
+    const missing: string[] = [];
+    if (!this.puzzleState.bridgeRuneSolved) missing.push('the Forgotten Bridge');
+    if (!this.puzzleState.riverGateSolved) missing.push('the Forgotten River');
+    if (!this.puzzleState.shrineSolved) missing.push('the Memory Shrine');
+    return missing;
+  }
+
+  private listRites(rites: string[]): string {
+    if (rites.length === 1) return rites[0];
+    if (rites.length === 2) return `${rites[0]} and ${rites[1]}`;
+    return `${rites.slice(0, -1).join(', ')}, and ${rites[rites.length - 1]}`;
   }
 
   // --- Baobab Heart Restoration Finale ---
   private handleBaobabCoreInteraction() {
-    const collectedCount = this.memories.filter(m => m.unlocked).length;
+    const collectedCount = this.gatheredFieldEchoes();
     if (collectedCount < 3) {
-      // Need memories first
       this.callbacks.onDialogueOpen({
         speaker: 'Spirit of the Baobab',
         title: 'The Dormant Heartwood',
         text: `The great trunk whispers faintly. You must gather the Echoes of Song, Rain, and Community before the Baobab can fully awaken. (${collectedCount}/3 gathered)`,
         proverb: '“One finger cannot wash the face. Bring all memories home.”',
+      });
+      return;
+    }
+
+    const missing = this.unfinishedRites();
+    if (missing.length > 0) {
+      this.callbacks.onDialogueOpen({
+        speaker: 'Spirit of the Baobab',
+        title: 'The Heartwood Still Sleeps',
+        text: `The echoes are gathered, but the land is not whole. Reconcile ${this.listRites(missing)} before the grandfather of trees can awaken. What you have gathered stays with you.`,
+        proverb: '“A path unfinished is a story unfinished.”',
       });
       return;
     }
@@ -398,6 +550,7 @@ export class GameEngine {
     this.isRestoringBaobab = true;
     soundEngine.playBaobabRestoration();
     this.handleMemoryFragmentPickup('memory-roots');
+    this.emitProgress();
   }
 
   // --- Fall / Loss Checkpoint Recovery ---

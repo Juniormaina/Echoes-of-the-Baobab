@@ -22,12 +22,47 @@ npm run preview
 
 ---
 
+## World map
+
+North is **+Z** and east is **+X**. The grid numbers are the same coordinates the game uses. Lighter ground is higher: the shrine mound and the baobab plateau. The dark band is the gorge. The blue channel is the river bed. The dashed line is the journey order, from the start through the three puzzles to the heartwood.
+
+![Top-down map of the savanna, gorge, river, shrine, and baobab, plotted from the game coordinates](docs/images/world-map.png)
+
+You can walk from about x −100 to 100 and z −90 to 85. The gorge between z −26 and z −11 is a fall everywhere except the restored bridge deck, near x 0, and the river pocket from x 23 to 40.
+
+---
+
 ## Scenes
 
-1. **Title.** The start screen offers Kidogo, Safari, and Ancestor, then **BEGIN JOURNEY**.
-2. **REMEMBER.** Pressing **R** shows the ghost bridge, ancestral echoes, and a glowing edge ring. The past-realm bed fades out over one second when REMEMBER ends.
-3. **Memory Shrine.** Three totems stand on the western rise: Hornbill, Elephant, and Sun Leopard. REMEMBER brightens their marks.
-4. **Finale.** After Song, Rain, and Community are gathered, the heartwood blooms in the world and the win screen appears.
+### Opening savanna
+
+![The Memory Keeper meets the griot on the red savanna, with the dormant baobab ahead](docs/images/savanna-opening.jpg)
+
+The journey starts on the red clay. Baba Olatunji sits near the path. The Great Baobab waits dormant in the distance.
+
+### The Forgotten Bridge
+
+![A restored rope bridge spans the gorge beside a glowing rune stone](docs/images/forgotten-bridge.jpg)
+
+REMEMBER shows the lost span. The sun-rune restores the deck, and the gorge can be crossed only there.
+
+### The Forgotten River
+
+![Three colored wheels sit in a stone watergate above a river and stepping stones](docs/images/forgotten-river.jpg)
+
+Sun, Wave, and Sprout stand west to east. One alignment releases the river. The stepping stones lead on toward the rain memory.
+
+### The Memory Shrine
+
+![Three totems marked with a hornbill, an elephant, and a sun leopard circle a fire](docs/images/memory-shrine.jpg)
+
+Attune Hornbill, then Elephant, then Sun Leopard. REMEMBER brightens their marks. A wrong totem clears the sequence.
+
+### The Baobab
+
+![The baobab in full golden leaf, with fireflies and a glowing heartwood altar](docs/images/baobab-finale.jpg)
+
+After the three puzzles are solved and Song, Rain, and Community are gathered, the heartwood blooms and the win screen appears.
 
 ---
 
@@ -150,10 +185,10 @@ By channeling the ancient ability to **REMEMBER**, players temporarily unveil th
 2. **Consult the Griot**: Speak with *Baba Olatunji*, the elder Storyteller seated near the starting path with his kora harp.
 3. **Use REMEMBER [R]**: Temporarily peer into the past to uncover hidden clues, bridges, and alignments.
 4. **Solve the Three Sacred Puzzles**:
-   - **The Forgotten Bridge**: REMEMBER reveals the lost span. Interact with the sun-rune to restore the deck. The gorge can be crossed only on that deck.
-   - **The Forgotten River**: Three wheels stand at the watergate — Sun, Wave, and Sprout, west to east. Each interact cycles that wheel. One alignment releases the river.
-   - **The Memory Shrine**: Attune Hornbill, then Elephant, then Sun Leopard. A wrong totem clears the sequence in progress. A completed shrine stays solved.
-5. **Awaken the Great Baobab**: Gather **Memory of Song**, **Memory of Rain**, and **Memory of Community**, then speak to the heartwood. **Memory of the Baobab** is granted as the canopy blooms. The win screen follows. The three puzzles are the journey; the win check looks for those three memories.
+   - **The Forgotten Bridge**: Stand at the gorge and REMEMBER. The lost deck appears. Interact with the sun-rune only after you have seen it. The gorge can be crossed only on the restored deck.
+   - **The Forgotten River**: REMEMBER at the watergate. Cyan marks show where each wheel's pale pip should rest: Sun, Wave, and Sprout, west to east. Turn them in the present to match. One alignment releases the river.
+   - **The Memory Shrine**: REMEMBER on the rise. Beads above the totems show the order: Hornbill, then Elephant, then Sun Leopard. A wrong totem clears the sequence. A completed shrine stays solved.
+5. **Awaken the Great Baobab**: Solve all three puzzles, and gather **Memory of Song**, **Memory of Rain**, and **Memory of Community**. The heartwood stays asleep until both are true. **Memory of the Baobab** is granted as the canopy blooms, and the win screen follows.
 
 ---
 
@@ -182,7 +217,7 @@ Touch controls appear on a coarse pointer (a phone or tablet, portrait or landsc
 
 ## ⚖️ Difficulty Configurations
 
-Difficulty changes how long REMEMBER lasts and how long you wait before using it again.
+Difficulty changes how long REMEMBER lasts and how long you wait before using it again. Kidogo also shows a faint wisp toward the next step.
 
 | Difficulty | Subtitle | REMEMBER Duration | Cooldown |
 | :--- | :--- | :--- | :--- |
@@ -216,6 +251,8 @@ Difficulty changes how long REMEMBER lasts and how long you wait before using it
 ├── metadata.json                # AI Studio application metadata
 ├── package.json                 # Project dependencies & scripts
 ├── README.md                    # Comprehensive documentation & blueprints
+├── docs/
+│   └── images/                  # Scene illustrations and the world map
 ├── src/
 │   ├── main.tsx                 # React DOM mount point
 │   ├── App.tsx                  # Root orchestration & game view state
